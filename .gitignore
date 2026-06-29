@@ -1,0 +1,31 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Command and example binaries dropped in the repo root when built via
+# `go build ./cmd/<name>` or `go build ./examples/<name>`.
+# Root-anchored to avoid matching same-named files elsewhere.
+/familio
+/getperson
+
+# Test binary, built with `go test -c`
+*.test
+
+# Code coverage profiles and other test artifacts
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# Go workspace file
+go.work
+go.work.sum
+
+# env file
+.env
+
+# Playwright MCP browser-snapshot artifacts
+.playwright-mcp/
