@@ -130,10 +130,12 @@ type createResponse struct {
 
 // CreatePersonInput is the caller-facing create payload: the basic fields plus
 // the life events to attach. Exactly one birth event is required; build them
-// with SelfBirthEvent / SelfDeathEvent.
+// with SelfBirthEvent / SelfDeathEvent. Biography, when non-nil, sets the
+// person's initial biography text in the same request.
 type CreatePersonInput struct {
-	Basic  BasicFields
-	Events []Event
+	Basic     BasicFields
+	Events    []Event
+	Biography *string
 }
 
 // BirthEvent builds a birth event for childRef (SelfRef when the child is being
@@ -211,7 +213,7 @@ func (c *Client) CreatePerson(ctx context.Context, in CreatePersonInput) (*creat
 		query.Set("owner", c.userUUID)
 	}
 
-	body := personCreateBody{Basic: in.Basic, Events: in.Events}
+	body := personCreateBody{Basic: in.Basic, Events: in.Events, Biography: in.Biography}
 	req, err := c.newAuthedRequest(ctx, http.MethodPost, "persons", query, body)
 	if err != nil {
 		return nil, err

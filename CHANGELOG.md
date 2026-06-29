@@ -1,3 +1,14 @@
+## 0.2.0
+
+### NEW
+
+- **Person biography support.** New `Biography{Text, UpdatedAt}` value object plus
+  `Client.GetPersonBiography` (GET `/persons/<uuid>/biography`) and
+  `Client.UpdatePersonBiography(uuid, text, version)` (PUT with `X-Base-Version`). The
+  biography sub-resource carries its **own** optimistic-lock version, distinct from `/basic`'s.
+  `CreatePersonInput` gains an optional `Biography *string` to set the initial value at create
+  time. See `API.md` › Biography sub-resource.
+
 ## 0.1.0
 
 ### NEW
