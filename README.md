@@ -59,14 +59,16 @@ A runnable version of this example lives in
 
 ## Command-line tool
 
-`cmd/familio` is a read-only CLI façade over the library — handy for quick
-lookups (`familio person get`, `familio settlement get`, `familio whoami`, …)
-without writing Go:
+`cmd/familio` is a CLI façade over the library — handy for quick lookups
+(`familio person get`, `familio tree`, `familio settlement get`, …) and a few
+targeted writes (`familio marriage create/delete`, `familio person
+set-biography`) without writing Go:
 
 ```bash
 go install github.com/dmalch/go-familio/cmd/familio@latest
 familio settlement persons <uuid>      # public, no auth
 FAMILIO_COOKIES='t=eyJ…' familio whoami
+familio tree <uuid> -up -surname Иванов
 ```
 
 See [`cmd/familio/README.md`](cmd/familio/README.md) for the full command list,
@@ -100,6 +102,10 @@ The settlement-persons read is public and needs no credentials.
   expiry.
 - `ErrNotLoggedIn`, `ErrNotFound`, and `ErrAccessDenied` map the auth/404/403
   cases for `errors.Is` checks.
+- Derived views on top of the raw events: `DeriveRelations(events, uuid)` →
+  normalized `parents`/`spouses`/`children` (spouses carry the wedding-event
+  "union" uuid), `BirthYear`/`DeathYear`, and `Client.CrawlTree` for a bounded
+  BFS over the connected persons.
 
 ## Documentation
 

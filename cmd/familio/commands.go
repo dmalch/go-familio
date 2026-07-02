@@ -16,8 +16,15 @@ func commandTree() map[string]*command {
 		"whoami": {summary: "show the authenticated account uuid", run: runWhoami},
 		"help":   {summary: "show this usage text", run: runHelp},
 
+		"tree": {summary: "crawl connected persons with structured relations ([-up|-down|-component] [-surname s] [-depth n])", run: runTree},
+
 		"person": {summary: "person resource", sub: map[string]*command{
-			"get": {summary: "fetch a person's basic record and events by uuid", run: runPersonGet},
+			"get":           {summary: "fetch a person's record, relations, years, and events by uuid", run: runPersonGet},
+			"set-biography": {summary: "set (or -append) a person's biography from -text or stdin", run: runPersonSetBiography},
+		}},
+		"marriage": {summary: "marriage (wedding event) resource", sub: map[string]*command{
+			"create": {summary: "link two persons with a wedding event ([-date] [-comment])", run: runMarriageCreate},
+			"delete": {summary: "delete a marriage by <person-uuid> <union-uuid>", run: runMarriageDelete},
 		}},
 		"settlement": {summary: "settlement (place) resource", sub: map[string]*command{
 			"get":     {summary: "fetch a settlement by uuid", run: runSettlementGet},
@@ -31,8 +38,9 @@ func commandTree() map[string]*command {
 
 // printUsage writes the command list to w.
 func printUsage(w io.Writer) {
-	_, _ = fmt.Fprint(w, "familio — read-only command-line client for the familio.org API\n\n"+
-		"Usage:\n  familio [-cookies <header>] [-browser <name>] <command> [<subcommand>] [args]\n\nCommands:\n")
+	_, _ = fmt.Fprint(w, "familio — command-line client for the familio.org API\n\n"+
+		"Usage:\n  familio <command> [<subcommand>] [args] [flags]\n\n"+
+		"Global flags may appear before or after the command and its arguments.\n\nCommands:\n")
 	printCommands(w, "", commandTree())
 	_, _ = fmt.Fprint(w, "\nGlobal flags:\n"+
 		"  -cookies <header>   session cookies as a raw \"name=value; …\" header (or set FAMILIO_COOKIES)\n"+
