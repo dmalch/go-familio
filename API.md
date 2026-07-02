@@ -234,7 +234,9 @@ behaviour.
 
 A person's **«Источники»** (sources / record citations — the `?tab=3` panel) are a **separate
 sub-resource collection**, *not* events. A source is an immutable **reference** to a catalogued
-entity plus a mutable free-text comment. No `X-Base-Version` header is involved (unlike `/basic`).
+entity plus a mutable free-text comment. The **comment edit is optimistic-locked** by the same
+`X-Base-Version` header as `/basic` and `/biography` (its value is the source's own `updatedAt`);
+a missing token is rejected with «Не указана дата-время последнего обновления источника».
 
 - **List** `GET /api/v2/persons/<personUuid>/sources` → **200**, a JSON array of source objects.
 - **Create** `POST /api/v2/persons/<personUuid>/sources` with the **write body**
@@ -242,9 +244,10 @@ entity plus a mutable free-text comment. No `X-Base-Version` header is involved 
   → **200**, returns the full (enriched) source object. The write carries only those three
   fields; `name`/`requisites`/`years`/`comment` are server-derived/defaulted.
 - **Edit (comment only)** `PATCH /api/v2/persons/<personUuid>/sources/<entityUuid>` with
-  `Content-Type: application/ld+json`, body `{ "comment": "…" }` → **200**, returns the updated
-  object. Only `comment` is mutable; the reference (`uuid`/`type`/`catalogKey`) is fixed —
-  changing it is a different source (delete + create).
+  `Content-Type: application/ld+json`, body `{ "comment": "…" }` and header
+  `X-Base-Version: <the source's own updatedAt>` → **200**, returns the updated object. Only
+  `comment` is mutable; the reference (`uuid`/`type`/`catalogKey`) is fixed — changing it is a
+  different source (delete + create). A missing/stale version → **400/409**.
 - **Delete** `DELETE /api/v2/persons/<personUuid>/sources/<entityUuid>` → **204**.
 
 The path id is the **referenced entity's uuid** (the source's identity within the person), so a

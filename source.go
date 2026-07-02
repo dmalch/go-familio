@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 )
 
@@ -118,11 +119,27 @@ func (c *Client) CreateSource(ctx context.Context, personUUID string, ref Source
 // UpdateSourceComment edits a source's comment in place
 // (PATCH /api/v2/persons/<uuid>/sources/<sourceUuid>). Only the comment is
 // mutable; the reference is fixed. Returns the updated source.
+//
+// familio guards the PATCH with the optimistic-lock X-Base-Version header (the
+// same one that guards /basic and /biography): its value is the source's own
+// updatedAt, and a missing token is rejected with «Не указана дата-время
+// последнего обновления источника». The current updatedAt is read fresh here so
+// callers do not have to thread a version token through.
 func (c *Client) UpdateSourceComment(ctx context.Context, personUUID, sourceUUID, comment string) (*Source, error) {
+	sources, err := c.GetPersonSources(ctx, personUUID)
+	if err != nil {
+		return nil, err
+	}
+	current := FindSourceByID(sources, sourceUUID)
+	if current == nil {
+		return nil, fmt.Errorf("%w: source %s on person %s", ErrNotFound, sourceUUID, personUUID)
+	}
+
 	req, err := c.newAuthedRequest(ctx, http.MethodPatch, "persons/"+personUUID+"/sources/"+sourceUUID, nil, sourceCommentPatch{Comment: comment})
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("X-Base-Version", current.UpdatedAt)
 	var out Source
 	if err := c.do(req, &out); err != nil {
 		return nil, err

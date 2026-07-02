@@ -1,3 +1,15 @@
+## 0.3.1
+
+### FIXED
+
+- **Source comment edit now sends the optimistic-lock header.** familio guards the source
+  comment `PATCH` with the same `X-Base-Version` header as `/basic` and `/biography` (its value
+  is the source's own `updatedAt`); without it the edit is rejected with «Не указана дата-время
+  последнего обновления источника» (HTTP 400/409). `Client.UpdateSourceComment` now reads the
+  source's current `updatedAt` and sends it, so creating/editing a source with a comment works
+  again. Signature unchanged. `API.md`'s sources section corrected (it wrongly said no
+  `X-Base-Version` is involved).
+
 ## 0.3.0
 
 ### NEW

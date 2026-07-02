@@ -1,7 +1,11 @@
 package familio
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -46,6 +50,51 @@ func TestSourceCommentPatchShape(t *testing.T) {
 	b, err := json.Marshal(sourceCommentPatch{Comment: "новый"})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(string(b)).To(Equal(`{"comment":"новый"}`))
+}
+
+// TestUpdateSourceCommentSendsVersion locks the fix: the in-place comment PATCH
+// reads the source's current updatedAt and sends it as the X-Base-Version
+// optimistic-lock header (familio rejects a missing token with 409/400).
+func TestUpdateSourceCommentSendsVersion(t *testing.T) {
+	RegisterTestingT(t)
+	var gotMethod, gotVersion string
+	var gotBody map[string]any
+	srv := biographyTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v2/persons/p1/sources":
+			_, _ = io.WriteString(w, `[{"uuid":"s1","type":"case","comment":"старый","updatedAt":"2026-06-28T09:48:38+00:00"}]`)
+		case r.Method == http.MethodPatch && r.URL.Path == "/api/v2/persons/p1/sources/s1":
+			gotMethod = r.Method
+			gotVersion = r.Header.Get("X-Base-Version")
+			Expect(json.NewDecoder(r.Body).Decode(&gotBody)).To(Succeed())
+			_, _ = io.WriteString(w, `{"uuid":"s1","type":"case","comment":"новый","updatedAt":"2026-06-29T10:00:00+00:00"}`)
+		default:
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	})
+	defer srv.Close()
+
+	out, err := newBiographyClient(srv).UpdateSourceComment(context.Background(), "p1", "s1", "новый")
+	Expect(err).ToNot(HaveOccurred())
+	Expect(gotMethod).To(Equal(http.MethodPatch))
+	Expect(gotVersion).To(Equal("2026-06-28T09:48:38+00:00"), "PATCH must carry the source's own updatedAt as X-Base-Version")
+	Expect(gotBody).To(Equal(map[string]any{"comment": "новый"}))
+	Expect(out.Comment).To(Equal("новый"))
+	Expect(out.UpdatedAt).To(Equal("2026-06-29T10:00:00+00:00"))
+}
+
+// TestUpdateSourceCommentNotFound: patching a source the person does not cite is
+// a typed ErrNotFound (the version look-up cannot find it).
+func TestUpdateSourceCommentNotFound(t *testing.T) {
+	RegisterTestingT(t)
+	srv := biographyTestServer(func(w http.ResponseWriter, r *http.Request) {
+		Expect(r.URL.Path).To(Equal("/api/v2/persons/p1/sources"))
+		_, _ = io.WriteString(w, `[]`)
+	})
+	defer srv.Close()
+
+	_, err := newBiographyClient(srv).UpdateSourceComment(context.Background(), "p1", "missing", "x")
+	Expect(errors.Is(err, ErrNotFound)).To(BeTrue())
 }
 
 func TestFindSourceByID(t *testing.T) {
