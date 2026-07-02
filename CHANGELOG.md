@@ -1,3 +1,30 @@
+## 0.3.0
+
+### NEW
+
+- **Normalized relations & derived person view.** New `DeriveRelations(events, uuid)` reduces a
+  person's events into `Relations{Parents, Spouses, Children}` — flat `PersonRef` lists instead of
+  per-event participant roles. Spouses are `Spouse{UUID, Name, MarriageUUID}`, exposing the
+  underlying wedding-event (union) uuid needed to import a `familio_marriage` or target it for
+  deletion. `BirthYear`/`DeathYear` and `OwnDeathEvent` helpers complete the reduction. (#4, #5)
+- **Tree crawler.** `Client.CrawlTree(ctx, rootUUID, TreeOptions{Direction, Surname, Depth})`
+  breadth-first walks the connected persons around a root and returns `[]TreeNode`
+  (`{uuid, name, year, parents, spouses, children}`), replacing hand-written BFS crawlers.
+  Direction is `TreeUp`/`TreeDown`/`TreeComponent`; `Surname` bounds expansion to keep in-law
+  branches out; `Depth` caps distance. (#3)
+
+### CLI
+
+- `person get` now also emits `relations`, `birthYear`/`deathYear`, `birthDate`/`deathDate`, and a
+  `marriageUuid` on each spouse — alongside the raw `basic` and `events`. (#4, #5)
+- New `tree <uuid> [-up|-down|-component] [-surname <s>] [-depth <n>]` command. (#3)
+- New write commands: `marriage create <a> <b> [-date] [-comment]`,
+  `marriage delete <person-uuid> <union-uuid>`, and
+  `person set-biography <uuid> [-text|stdin] [-append]`. (#6)
+- **Global flags may now appear after the subcommand and its arguments**
+  (`person get <uuid> -browser chrome`), not just before it. (#8)
+- All machine-readable output emits **full uuids** consistently — no truncated prefixes. (#7)
+
 ## 0.2.0
 
 ### NEW

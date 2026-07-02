@@ -50,17 +50,48 @@ func oneArg(args []string, name string) (string, error) {
 	return args[0], nil
 }
 
-// personView bundles a person's basic record with their life events for a
-// single "person get" response.
-type personView struct {
-	Basic  *familio.BasicRecord `json:"basic"`
-	Events []familio.Event      `json:"events"`
+// parseOneUUID parses a leaf command whose only positional is a single <name>
+// argument, honoring the global flags wherever they appear (issue #8). done is
+// true when the flag parser already handled -h/-help, in which case the caller
+// should return the (nil) error immediately.
+func (g *globalOpts) parseOneUUID(cmd, name string, args []string) (uuid string, done bool, err error) {
+	fs := g.newFlagSet(cmd)
+	pos, err := parseFlags(fs, args)
+	if err != nil {
+		return "", isHelp(err), ignoreHelp(err)
+	}
+	uuid, err = oneArg(pos, name)
+	return uuid, false, err
 }
 
-// runPersonGet fetches a person's basic record and events by uuid.
+// ignoreHelp maps flag.ErrHelp to nil (the FlagSet already printed usage) and
+// passes any other error through.
+func ignoreHelp(err error) error {
+	if isHelp(err) {
+		return nil
+	}
+	return err
+}
+
+// personView bundles a person's basic record with a normalized relations view
+// (parents/spouses/children, derived from the events), convenience birth/death
+// years and formatted dates, and the raw life events for a single
+// "person get" response. All uuids in relations are full uuids (issue #7).
+type personView struct {
+	Basic     *familio.BasicRecord `json:"basic"`
+	BirthYear *int                 `json:"birthYear,omitempty"`
+	DeathYear *int                 `json:"deathYear,omitempty"`
+	BirthDate string               `json:"birthDate,omitempty"`
+	DeathDate string               `json:"deathDate,omitempty"`
+	Relations familio.Relations    `json:"relations"`
+	Events    []familio.Event      `json:"events"`
+}
+
+// runPersonGet fetches a person's basic record and events by uuid and returns
+// them alongside the derived relations, birth/death years, and marriage uuids.
 func runPersonGet(ctx context.Context, g *globalOpts, args []string) error {
-	uuid, err := oneArg(args, "uuid")
-	if err != nil {
+	uuid, done, err := g.parseOneUUID("person get", "uuid", args)
+	if err != nil || done {
 		return err
 	}
 	c, err := newClient(g)
@@ -75,13 +106,36 @@ func runPersonGet(ctx context.Context, g *globalOpts, args []string) error {
 	if err != nil {
 		return err
 	}
-	return render(g.stdout, personView{Basic: basic, Events: events})
+	return render(g.stdout, buildPersonView(basic, events, uuid))
+}
+
+// buildPersonView assembles the enriched person get response from the raw basic
+// record and events.
+func buildPersonView(basic *familio.BasicRecord, events []familio.Event, uuid string) personView {
+	v := personView{
+		Basic:     basic,
+		Relations: familio.DeriveRelations(events, uuid),
+		Events:    events,
+	}
+	if year, ok := familio.BirthYear(events, uuid); ok {
+		v.BirthYear = &year
+	}
+	if year, ok := familio.DeathYear(events, uuid); ok {
+		v.DeathYear = &year
+	}
+	if birth := familio.OwnBirthEvent(events, uuid); birth != nil {
+		v.BirthDate = birth.Date.Formatted
+	}
+	if death := familio.OwnDeathEvent(events, uuid); death != nil {
+		v.DeathDate = death.Date.Formatted
+	}
+	return v
 }
 
 // runSettlementGet fetches a settlement (place) by uuid.
 func runSettlementGet(ctx context.Context, g *globalOpts, args []string) error {
-	uuid, err := oneArg(args, "uuid")
-	if err != nil {
+	uuid, done, err := g.parseOneUUID("settlement get", "uuid", args)
+	if err != nil || done {
 		return err
 	}
 	c, err := newClient(g)
@@ -98,8 +152,8 @@ func runSettlementGet(ctx context.Context, g *globalOpts, args []string) error {
 // runSettlementPersons lists the persons tied to a settlement. This is a
 // public endpoint and needs no credentials.
 func runSettlementPersons(ctx context.Context, g *globalOpts, args []string) error {
-	uuid, err := oneArg(args, "uuid")
-	if err != nil {
+	uuid, done, err := g.parseOneUUID("settlement persons", "uuid", args)
+	if err != nil || done {
 		return err
 	}
 	c, err := newClient(g)
@@ -115,8 +169,8 @@ func runSettlementPersons(ctx context.Context, g *globalOpts, args []string) err
 
 // runSourcesList lists a person's source citations by person uuid.
 func runSourcesList(ctx context.Context, g *globalOpts, args []string) error {
-	uuid, err := oneArg(args, "person-uuid")
-	if err != nil {
+	uuid, done, err := g.parseOneUUID("sources list", "person-uuid", args)
+	if err != nil || done {
 		return err
 	}
 	c, err := newClient(g)

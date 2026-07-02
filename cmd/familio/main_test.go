@@ -21,7 +21,7 @@ func TestRun_Help_PrintsUsageToStdout(t *testing.T) {
 	g := NewWithT(t)
 	code, out, _ := runArgs("help")
 	g.Expect(code).To(Equal(0))
-	g.Expect(out).To(ContainSubstring("read-only command-line client"))
+	g.Expect(out).To(ContainSubstring("command-line client for the familio.org API"))
 	g.Expect(out).To(ContainSubstring("person get"))
 	g.Expect(out).To(ContainSubstring("settlement persons"))
 }
