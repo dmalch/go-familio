@@ -271,6 +271,61 @@ The two confirmed `type`s come from the two "add source" UI flows:
   source catalog (e.g. `"gwarmil"` = the WWI «Памяти героев Великой войны» project), since a
   catalog-person uuid is only unique within its catalog.
 
+### Change history sub-resource (Bearer, Familio Plus)
+
+The **«История изменений»** feature (shipped 2026-07-08, the `/persons-changelog` page; also
+reachable per person from the person-page ⋮ menu) is a **read-only audit log** of every edit to
+the account's persons. It lives under the account owner's uuid — the same value as the JWT `uuid`
+claim / `Client.AccountUUID`; requesting another owner's history → **403**. The UI is Plus-gated;
+the API behavior for a non-Plus account is unverified (likely 403 too).
+
+- **List** `GET /api/v2/persons/history/<ownerUuid>` → **200** `{data: […], pager: {…}}` (the
+  same `pager {page, itemsPerPage, totalItems}` envelope as the public persons list).
+  **`page`, `itemsPerPage`, `orderBy` and `orderDirection` are all required** — omitting any of
+  them → **400**. `orderBy=id` is the only observed value; `orderDirection` is `desc` (UI
+  «От новых к старым») or `asc`.
+- **Filter facets** `POST /api/v2/persons/history/<ownerUuid>/get-filters-data` with a JSON body
+  of the currently-applied filters (`{}` for none, or e.g. `{"operation":["update"]}`) → **200**
+  with the per-facet value/label/count vocabularies: `authorFilter`, `operationFilter`,
+  `personDataTypeFilter`, `personFilter` (+ `personFilterHasMore`), `causeFilter`.
+
+**List query parameters** (all filters optional; array params use PHP-style brackets):
+
+| param | example | meaning |
+|---|---|---|
+| `page`, `itemsPerPage` | `page=1&itemsPerPage=20` | required paging (UI offers 20/50/100) |
+| `orderBy`, `orderDirection` | `orderBy=id&orderDirection=desc` | required sort |
+| `text` | `text=Тюжин` | free-text search over the entries |
+| `operation[]` | `operation[]=update` | `create` / `update` / `delete` |
+| `cause[]` | `cause[]=initialization` | `user` (Пользователь) / `initialization` (system-saved) |
+| `authorId[]` | `authorId[]=<userUuid>` | who edited; the zero uuid `00000000-…` is the system author |
+| `personId[]` | `personId[]=<personUuid>` | limit to specific persons (the per-person view) |
+| `date[from]`, `date[till]` | `date[from]=2026-07-01T00:00:00+02:00` | RFC3339 happened-at range |
+| `personDataType[N][personDataBlock]` | `personDataType[0][personDataBlock]=event` | `basic` / `event` / `source` / `biography` |
+| `personDataType[N][eventType]` | `personDataType[0][eventType]=birth` | with block `event`: an event-type key |
+| `personDataType[N][sourceType]` | `personDataType[0][sourceType]=case` | with block `source`: `register` / `case` / `catalog_person` |
+
+**Entry (read shape):**
+```jsonc
+{ "record": {
+    "id": 112528756,                       // numeric, monotonically increasing (the orderBy key)
+    "happenedAt": "2026-07-14T22:08:21.843518+00:00",
+    "cause": "user",                       // "user" | "initialization"
+    "operation": "delete",                 // "create" | "update" | "delete"
+    "personDataBlock": "event",            // "basic" | "event" | "source" | "biography"
+    "changes": { /* block-shaped snapshot, see below */ } },
+  "person": { "id": "<uuid>", "lastName": "…", "firstName": "…", "middleName": null,
+              "birthLastName": null, "birthFirstName": null, "gender": "male" },
+  "author": { "id": "<userUuid>", "displayName": "Мальчиков Д." } }
+```
+`changes` is the **snapshot of the block after the operation** (for `delete`, the state that was
+removed) and its shape follows `personDataBlock`: `basic` → the flat basic fields incl. `privacy`;
+`event` → an event-like object (`uuid`, `type`, `date`, `comment`, `settlement`, `participants`);
+`biography` → `{text}`; `source` → the source read shape (`uuid`, `type`, `name`, `requisites`,
+`years`, `catalog`, `comment`). **There is no before/after diff in the API** — the UI's
+«Было — Стало» view is computed client-side by comparing an update with the previous record for
+the same person+block, and no per-entry detail endpoint exists (expanding details fires no request).
+
 ## Provider mapping
 
 How the resources use the surface above:
