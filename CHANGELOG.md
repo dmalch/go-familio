@@ -1,3 +1,21 @@
+## 0.4.0
+
+### NEW
+
+- **Person change history («История изменений», Familio Plus).** New read-only support for the
+  audit log familio shipped on 2026-07-08: `Client.ListPersonsHistory(ctx, HistoryFilter)` pages
+  through `GET /api/v2/persons/history/<accountUuid>` with all the UI's filters (text, operations,
+  causes, authors, persons, data types, date range) and `Client.GetHistoryFilters(ctx)` fetches the
+  facet vocabularies with counts. Entries expose `{Record, Person, Author}`; `Record.Changes` is
+  the block-shaped snapshot kept as raw JSON (the API carries no before/after diff — the UI
+  computes it client-side). See `API.md` › Change history sub-resource.
+
+### CLI
+
+- New `history list` command with `-person`, `-author`, `-operation`, `-cause`, `-block`
+  (`-event-type`/`-source-type`), `-text`, `-from`/`-till`, `-page`/`-limit`, and `-asc` flags,
+  and `history filters` for the facet counts.
+
 ## 0.3.1
 
 ### FIXED

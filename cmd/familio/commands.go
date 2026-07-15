@@ -33,6 +33,10 @@ func commandTree() map[string]*command {
 		"sources": {summary: "person source citations", sub: map[string]*command{
 			"list": {summary: "list a person's source citations by person uuid", run: runSourcesList},
 		}},
+		"history": {summary: "person change history (Familio Plus)", sub: map[string]*command{
+			"list":    {summary: "list change-history entries ([-person u] [-operation op] [-block b] [-from d] [-till d] [-text s] [-page n] …)", run: runHistoryList},
+			"filters": {summary: "show the history filter facets (authors, operations, data types, …) with counts", run: runHistoryFilters},
+		}},
 	}
 }
 

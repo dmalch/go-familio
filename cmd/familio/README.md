@@ -43,6 +43,8 @@ familio marriage delete <p> <union>  # delete a marriage (union) by a participan
 familio settlement get <uuid>        # a settlement (place) record
 familio settlement persons <uuid>    # persons tied to a settlement (public)
 familio sources list <person-uuid>   # a person's source citations
+familio history list                 # change-history entries (Familio Plus)
+familio history filters              # change-history facets with counts (Familio Plus)
 familio help                         # full command list
 ```
 
@@ -71,6 +73,31 @@ familio tree <uuid> [-up | -down | -component] [-surname <s>] [-depth <n>]
   still emitted, just not expanded.
 - `-depth <n>` caps the BFS distance from the root (`0` = unlimited).
 
+### `history list` / `history filters`
+
+`history list` pages through the account's **«История изменений»** (person
+change history — a Familio Plus feature): every create/update/delete of your
+persons' basic data, events, sources, and biographies, newest first. Each
+entry is `{record, person, author}`; `record.changes` is the affected block's
+snapshot after the operation (the API carries no before/after diff).
+
+```bash
+familio history list [-person <uuid>] [-author <uuid>] [-operation create|update|delete] \
+  [-cause user|initialization] [-block basic|event|source|biography] \
+  [-event-type <t>] [-source-type <t>] [-text <s>] \
+  [-from <date>] [-till <date>] [-page <n>] [-limit <n>] [-asc]
+```
+
+- `-person`, `-author`, `-operation`, and `-cause` are repeatable;
+  `-event-type`/`-source-type` narrow a `-block event`/`-block source` filter.
+- `-from`/`-till` accept `YYYY-MM-DD` (local day bounds) or full RFC3339.
+- One page per call (`-page`/`-limit`); the `pager.totalItems` in the output
+  tells you when to stop.
+
+`history filters` prints the facet vocabularies (who edited, operations,
+causes, data types, persons) with per-value entry counts — useful for
+discovering what's in the log before filtering.
+
 ## Examples
 
 ```bash
@@ -84,6 +111,7 @@ familio whoami
 familio person get 3a2b…uuid
 familio tree 3a2b…uuid -up -surname Иванов
 familio sources list 3a2b…uuid
+familio history list -operation update -from 2026-07-01
 
 # Writes (real mutations on your account):
 familio marriage create 3a2b…uuid 9f0e…uuid -date 1850-06-12 -comment "венчание"
