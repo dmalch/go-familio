@@ -32,6 +32,14 @@
   uuids. They list the affected matches and prompt `[y/N]` on stderr before acting; `-yes` skips
   the prompt for scripted use. Declining, or an empty stdin, aborts without issuing a request.
 
+### FIXED
+
+- **`FlexDate` now marshals back to a plain date string.** It had an `UnmarshalJSON` but no
+  `MarshalJSON`, so re-encoding a `Person` leaked the struct's untagged fields as
+  `"birthDate": {"Formatted": "1890", "Present": true}`. It now encodes as `"1890"` (or `null`
+  when there is no date), mirroring the string form it already accepts on read. This changes the
+  rendered output of `settlement persons` and of both person sides of `matches list`.
+
 ## 0.4.0
 
 ### NEW
