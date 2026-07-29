@@ -38,6 +38,18 @@ func (d *FlexDate) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// MarshalJSON re-encodes the date as the plain formatted string (or null when
+// there is no date), mirroring the string form UnmarshalJSON accepts. Without
+// it the struct's fields would surface in rendered output as
+// {"Formatted": "1890", "Present": true}, since they carry no JSON tags.
+// Encoding is lossy by design: only the formatted form is kept on read.
+func (d FlexDate) MarshalJSON() ([]byte, error) {
+	if !d.Present {
+		return []byte("null"), nil
+	}
+	return json.Marshal(d.Formatted)
+}
+
 // Value returns the formatted date and whether a non-empty value is present.
 func (d FlexDate) Value() (string, bool) {
 	return d.Formatted, d.Present && d.Formatted != ""

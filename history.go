@@ -174,15 +174,10 @@ func (c *Client) ListPersonsHistory(ctx context.Context, filter HistoryFilter) (
 	return &page, nil
 }
 
-// HistoryFacet is one selectable value of a change-history filter facet,
-// with the number of history entries carrying it.
-type HistoryFacet struct {
-	Item struct {
-		Value        string `json:"value"`
-		DisplayValue string `json:"displayValue"`
-	} `json:"item"`
-	Count int `json:"count"`
-}
+// HistoryFacet is one selectable value of a change-history filter facet, with
+// the number of history entries carrying it. The matches facets use the same
+// shape, so it is an alias for the shared Facet type.
+type HistoryFacet = Facet
 
 // HistoryDataTypeFacet is one value of the data-type facet; its value is the
 // {personDataBlock, eventType, sourceType} triple used by

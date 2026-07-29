@@ -326,6 +326,89 @@ removed) and its shape follows `personDataBlock`: `basic` → the flat basic fie
 «Было — Стало» view is computed client-side by comparing an update with the previous record for
 the same person+block, and no per-entry detail endpoint exists (expanding details fires no request).
 
+### Matches sub-resource (Bearer)
+
+The **«Совпадения»** feature (the `/profile/matches` page) is familio's duplicate-candidate
+inbox — analogous to Geni's Merge Center. Once a month familio compares every person in the
+account's tree against other users' **public** persons and against **record catalogs**
+(«справочники»), scoring each candidate pair; the user then confirms or rejects it. It is **not**
+Plus-gated: the free tier gets matches too, but only for public persons and a subset of catalogs
+(«Без подписки Familio Plus ищем совпадения только для публичных персон и в некоторых
+справочниках»). Like the change history, the collection lives under the account owner's uuid (the
+JWT `uuid` claim / `Client.AccountUUID`).
+
+All endpoints are **POST** (the reads included — the filter travels in the body), except the
+legacy list.
+
+- **List (paged)** `POST /api/v2/users/<ownerUuid>/matches/get-by-filters?page=&itemsPerPage=`
+  → **200** `{data: […], pager: {page, itemsPerPage, totalItems}, dataVersionMark: "…"}`. Unlike
+  the change-history list, **the paging params are optional** (the server defaults to `page=1`,
+  `itemsPerPage=15`); there is no `orderBy`/`orderDirection`.
+- **List (cursor)** `POST /api/v2/users/<ownerUuid>/matches/get-by-filters-scroll?pageAfterItem=&itemsPerPage=`
+  → **200**, same shape but with the cursor envelope `pager: {lastItem, hasMore}`. Omit
+  `pageAfterItem` for the first page, then pass the previous page's `lastItem`.
+- **Filter facets** `POST /api/v2/users/<ownerUuid>/matches/get-filters-data` with the same filter
+  body → **200** with `dateFilter`, `personFilter`, `userFilter`, `catalogFilter`, `statusFilter`,
+  each `[{item: {value, displayValue}, count}]` — the same facet shape as the change history. Each
+  facet is computed with the *other* filters applied (a facet does not narrow itself), so
+  `statusFilter` ignores a posted `status`.
+- **Set status** `POST /api/v2/users/<ownerUuid>/matches/{confirm,reject,undecide}-by-ids` with a
+  **bare JSON array** of match uuids (`["95e794df-…"]`, *not* an object wrapping one) → **200**.
+  `undecide-by-ids` returns matches to `undecided`, so confirm and reject are both reversible.
+- **Set status filter-wide** `POST /api/v2/users/<ownerUuid>/matches/{confirm,reject}-by-filters`
+  with `{"filter": {…, "excludeUuids": []}}` plus the header
+  `X-Base-Version: <the list's dataVersionMark>` (the same optimistic-lock pattern as `/basic`,
+  `/biography` and source comments). This is how the UI's «Все совпадения» bulk action applies a
+  decision to every match matching the current filter, minus any deselected ones.
+  **Not implemented by this client** — see the `status` caveat below.
+- **Legacy list** `GET /api/v2/users/<ownerUuid>/matches?page=&itemsPerPage=` → **200**, the same
+  response shape with no filtering. Superseded by `get-by-filters`.
+
+**The filter body** — every one of the seven keys is **required**; omitting any is rejected with
+**400** `{"type":"simple_error","message":"Неправильный формат фильтра <name>","code":4}`. Empty
+lists mean "no restriction" and must be `[]`, not `null`:
+
+| key | example | meaning |
+|---|---|---|
+| `person` | `["<personUuid>"]` | limit to specific persons **of your own** tree |
+| `user` | `["<userUuid>"]` | limit to matches whose foreign person belongs to these users |
+| `catalog` | `["vss"]` | limit to record catalogs («Источник совпадения»); keys from `catalogFilter` |
+| `date` | `["2026-07-20"]` | the monthly batch that produced the match |
+| `status` | `["undecided"]` | `undecided` (Ожидающие) / `confirmed` (Подтверждённые) / `rejected` (Отклонённые) |
+| `minTotalScore`, `maxTotalScore` | `1` … `99` | the probability window the UI shows as «Вероятность: 1%-99%» |
+
+`status` must be an **array** on the read endpoints — a scalar string is rejected with
+**400** «Неправильный формат фильтра status». The bulk `*-by-filters` write body captured from the
+UI nevertheless sends it as a **scalar** (`"status": "undecided"`). That asymmetry could not be
+verified without mass-mutating real matches, which is why the bulk writes are documented here but
+deliberately left unimplemented; the `*-by-ids` endpoints cover the same ground safely.
+
+**Match (read shape):**
+```jsonc
+{ "uuid": "95e794df-…",     // the MATCH's id — what the *-by-ids endpoints take (not a person uuid)
+  "score": 99,               // «Вероятность совпадения», percent
+  "date": "2026-07-20",      // the monthly batch that produced it
+  "status": "undecided",     // "undecided" | "confirmed" | "rejected"
+  "ownPerson":     { /* your person — always a regularPerson */ },
+  "foreignPerson": { /* the candidate duplicate — polymorphic, see below */ },
+  "detailedScore": { "firstName": 20, "lastName": 20, "middleName": 20,
+                     "birthDate": 10, "deathDate": 0, "birthPlace": 10 } }
+```
+`detailedScore` is a per-field points breakdown that **does not sum to `score`** (observed 80 vs a
+score of 99, and 70 vs a score of 3) — `score` is a separate probability.
+
+Both person sides use the **persons read shape** (the same one `GET /api/v2/persons` returns, i.e.
+this client's `Person`) plus the ownership fields `ownerId`, `isMine`, `isGrantedToMe`,
+`privacyType`, `biography`, and full `birthPlace`/`deathPlace` settlement objects. `foreignPerson`
+is **polymorphic**, discriminated by `type`:
+- **`regularPerson`** — a person in another user's tree: carries `ownerId` (their user uuid,
+  linkable as `/users/<uuid>`), privacy, tags and places.
+- **`catalogPerson`** — a record-catalog entry: carries `catalogKey` / `catalogName` plus
+  `updating`, and **none** of the ownership/place/privacy fields.
+
+`dataVersionMark` (e.g. `"2026-07-27T08:23:44+00:00"`) stamps the match set the page was computed
+from; it is only needed as `X-Base-Version` on the bulk filter-wide writes.
+
 ## Provider mapping
 
 How the resources use the surface above:

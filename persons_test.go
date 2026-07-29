@@ -69,6 +69,46 @@ func TestDoReturnsErrNotFound(t *testing.T) {
 	Expect(err).To(MatchError(ErrNotFound))
 }
 
+// TestFlexDateMarshal locks the rendered form: a plain string or null, never
+// the struct's untagged fields. The object encoding collapses to its formatted
+// value, so a decode/encode round-trip is lossy but stable.
+func TestFlexDateMarshal(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"null", `{"birthDate":null}`, `null`},
+		{"missing", `{}`, `null`},
+		{"string", `{"birthDate":"1890"}`, `"1890"`},
+		{"empty string", `{"birthDate":""}`, `""`},
+		{"object collapses to formatted", `{"birthDate":{"type":"equal","formatted":"После 1861"}}`, `"После 1861"`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			RegisterTestingT(t)
+			var p Person
+			Expect(json.Unmarshal([]byte(tc.in), &p)).To(Succeed())
+
+			encoded, err := json.Marshal(p.BirthDate)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(string(encoded)).To(Equal(tc.want))
+
+			// Re-encoding the whole record must not leak the field names either.
+			record, err := json.Marshal(p)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(string(record)).ToNot(ContainSubstring("Formatted"))
+			Expect(string(record)).ToNot(ContainSubstring("Present"))
+			Expect(string(record)).To(ContainSubstring(`"birthDate":` + tc.want))
+
+			// And the string form round-trips back to the same value.
+			var again Person
+			Expect(json.Unmarshal(record, &again)).To(Succeed())
+			Expect(again.BirthDate).To(Equal(p.BirthDate))
+		})
+	}
+}
+
 func TestFlexDateUnmarshal(t *testing.T) {
 	cases := []struct {
 		name        string

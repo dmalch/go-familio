@@ -1,3 +1,45 @@
+## 0.5.0
+
+### NEW
+
+- **Matches («Совпадения»).** New support for familio's duplicate-candidate inbox — the monthly
+  pass that pairs your persons with other users' public persons and with record-catalog entries.
+  `Client.ListMatches(ctx, MatchFilter)` pages through
+  `POST /api/v2/users/<accountUuid>/matches/get-by-filters` with all the UI's filters (persons,
+  foreign owners, catalogs, batch dates, statuses and the score window),
+  `Client.ScrollMatches(ctx, filter, after)` walks the same set through the cursor endpoint, and
+  `Client.GetMatchFilters(ctx, filter)` fetches the facet vocabularies with counts. A `Match`
+  exposes `{OwnPerson, ForeignPerson}` as `MatchPerson` — the existing `Person` read shape plus
+  the ownership fields — so a foreign side is either a `regularPerson` from another tree
+  (with `OwnerID`) or a `catalogPerson` from a record catalog (with `CatalogKey`/`CatalogName`).
+  See `API.md` › Matches sub-resource.
+- **Match decisions.** `Client.ConfirmMatches`, `RejectMatches` and `UndecideMatches` set the
+  status of matches by match uuid via the `*-by-ids` endpoints. All three are reversible:
+  `UndecideMatches` returns a match to `undecided`. The filter-wide `*-by-filters` bulk endpoints
+  are documented in `API.md` but intentionally not implemented — their request body disagrees with
+  the read endpoints on how `status` is encoded, and verifying that would mean mass-mutating real
+  matches.
+- `HistoryFacet` is now an alias for the new shared `Facet` type, which the matches facets reuse.
+  The shape is unchanged, so existing code keeps compiling.
+
+### CLI
+
+- New `matches list` command with `-status`, `-person`, `-user`, `-catalog`, `-date`,
+  `-min-score`/`-max-score` and `-page`/`-limit` flags, plus `-all` to sweep every page through
+  the scroll cursor, and `matches filters` for the facet counts (the same filter flags narrow
+  them).
+- New `matches confirm`, `matches reject` and `matches undecide` commands taking one or more match
+  uuids. They list the affected matches and prompt `[y/N]` on stderr before acting; `-yes` skips
+  the prompt for scripted use. Declining, or an empty stdin, aborts without issuing a request.
+
+### FIXED
+
+- **`FlexDate` now marshals back to a plain date string.** It had an `UnmarshalJSON` but no
+  `MarshalJSON`, so re-encoding a `Person` leaked the struct's untagged fields as
+  `"birthDate": {"Formatted": "1890", "Present": true}`. It now encodes as `"1890"` (or `null`
+  when there is no date), mirroring the string form it already accepts on read. This changes the
+  rendered output of `settlement persons` and of both person sides of `matches list`.
+
 ## 0.4.0
 
 ### NEW
