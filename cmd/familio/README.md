@@ -45,6 +45,11 @@ familio settlement persons <uuid>    # persons tied to a settlement (public)
 familio sources list <person-uuid>   # a person's source citations
 familio history list                 # change-history entries (Familio Plus)
 familio history filters              # change-history facets with counts (Familio Plus)
+familio matches list                 # duplicate-candidate matches («Совпадения»)
+familio matches filters              # matches facets with counts
+familio matches confirm <uuid>…      # confirm matches by match uuid
+familio matches reject <uuid>…       # reject matches by match uuid
+familio matches undecide <uuid>…     # undo a confirm/reject
 familio help                         # full command list
 ```
 
@@ -98,6 +103,62 @@ familio history list [-person <uuid>] [-author <uuid>] [-operation create|update
 causes, data types, persons) with per-value entry counts — useful for
 discovering what's in the log before filtering.
 
+### `matches list` / `matches filters`
+
+`matches list` pages through the account's **«Совпадения»** — familio's
+duplicate-candidate inbox. Once a month familio pairs each of your persons with
+other users' *public* persons and with record-catalog entries, scoring the pair;
+you then confirm or reject it. Each entry carries the match `uuid` (the handle
+the decision commands take — **not** a person uuid), the `score` percentage,
+a `detailedScore` per-field breakdown, and both sides as `ownPerson` /
+`foreignPerson`.
+
+```bash
+familio matches list [-status undecided|confirmed|rejected] [-person <uuid>] [-user <uuid>] \
+  [-catalog <key>] [-date YYYY-MM-DD] [-min-score <n>] [-max-score <n>] \
+  [-page <n>] [-limit <n>] [-all]
+```
+
+- `-status`, `-person`, `-user`, `-catalog` and `-date` are repeatable.
+  `-person` filters by *your* persons; `-user` by the owner of the matched
+  person; `-catalog` by record catalog (keys come from `matches filters`).
+- `-min-score`/`-max-score` bound the probability window (1–99), the same
+  control the UI labels «Вероятность».
+- One page per call by default (`-page`/`-limit`, `pager.totalItems` tells you
+  when to stop), or `-all` to sweep every page through the scroll cursor — that
+  prints a bare JSON array with no `pager`.
+
+`foreignPerson.type` tells you what the match is against: `regularPerson` (a
+person in another user's tree, with `ownerId`) or `catalogPerson` (a
+record-catalog entry, with `catalogKey`/`catalogName`). Filter client-side
+rather than adding flags, e.g. only catalog matches:
+
+```bash
+familio matches list -all | jq '[.[] | select(.foreignPerson.type == "catalogPerson")]'
+```
+
+`matches filters` prints the facet vocabularies (batch dates, your persons,
+foreign owners, catalogs, statuses) with per-value match counts. The same
+filter flags narrow the counts, mirroring the UI's faceted search.
+
+### `matches confirm` / `matches reject` / `matches undecide`
+
+Set the status of one or more matches by **match uuid**:
+
+```bash
+familio matches reject   [-yes] <match-uuid> [<match-uuid>…]
+familio matches confirm  [-yes] <match-uuid> [<match-uuid>…]
+familio matches undecide [-yes] <match-uuid> [<match-uuid>…]
+```
+
+Each lists the affected matches and prompts `[y/N]` on stderr before acting
+(stdout stays pure JSON); `-yes` skips the prompt for scripted use. Answering
+anything but `y`/`yes` — including an empty or closed stdin — aborts without
+issuing a request.
+
+Nothing here is destructive: `matches undecide` returns a match to the
+`undecided` state, undoing either decision.
+
 ## Examples
 
 ```bash
@@ -112,8 +173,11 @@ familio person get 3a2b…uuid
 familio tree 3a2b…uuid -up -surname Иванов
 familio sources list 3a2b…uuid
 familio history list -operation update -from 2026-07-01
+familio matches list -status undecided -min-score 90
+familio matches filters
 
 # Writes (real mutations on your account):
+familio matches reject -yes <match-uuid>      # undo with: familio matches undecide <match-uuid>
 familio marriage create 3a2b…uuid 9f0e…uuid -date 1850-06-12 -comment "венчание"
 familio marriage delete 3a2b…uuid <union-uuid>
 echo "Жил-был человек." | familio person set-biography 3a2b…uuid

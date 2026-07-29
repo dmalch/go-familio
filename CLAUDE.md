@@ -23,8 +23,10 @@ request/response shapes, and the auth model.
   package rather than per-resource subpackages.
 - `cmd/familio/` — a CLI façade over the library (`whoami`, `person get`,
   `tree`, `settlement get`, `settlement persons`, `sources list`,
-  `history list`/`history filters`, plus the `marriage create/delete` and
-  `person set-biography` writes).
+  `history list`/`history filters`, `matches list`/`matches filters`, plus the
+  `marriage create/delete`, `person set-biography` and
+  `matches confirm/reject/undecide` writes). The `matches` mutations prompt
+  `[y/N]` on stderr unless `-yes` is given; nothing else in the CLI prompts.
 - `examples/getperson/` — a minimal runnable usage example.
 
 ## Commands

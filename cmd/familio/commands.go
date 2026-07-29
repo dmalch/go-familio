@@ -33,6 +33,13 @@ func commandTree() map[string]*command {
 		"sources": {summary: "person source citations", sub: map[string]*command{
 			"list": {summary: "list a person's source citations by person uuid", run: runSourcesList},
 		}},
+		"matches": {summary: "candidate duplicate persons («Совпадения»)", sub: map[string]*command{
+			"list":     {summary: "list match candidates ([-status s] [-person u] [-user u] [-catalog k] [-date d] [-min-score n] [-page n|-all] …)", run: runMatchesList},
+			"filters":  {summary: "show the matches filter facets (dates, persons, users, catalogs, statuses) with counts", run: runMatchesFilters},
+			"confirm":  {summary: "confirm matches by <match-uuid>… ([-yes]; reversible with \"matches undecide\")", run: runMatchesConfirm},
+			"reject":   {summary: "reject matches by <match-uuid>… ([-yes]; reversible with \"matches undecide\")", run: runMatchesReject},
+			"undecide": {summary: "return matches to the undecided state by <match-uuid>… ([-yes])", run: runMatchesUndecide},
+		}},
 		"history": {summary: "person change history (Familio Plus)", sub: map[string]*command{
 			"list":    {summary: "list change-history entries ([-person u] [-operation op] [-block b] [-from d] [-till d] [-text s] [-page n] …)", run: runHistoryList},
 			"filters": {summary: "show the history filter facets (authors, operations, data types, …) with counts", run: runHistoryFilters},
