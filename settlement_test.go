@@ -1,7 +1,10 @@
 package familio
 
 import (
+	"context"
 	"encoding/json"
+	"io"
+	"net/http"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -98,4 +101,43 @@ func TestCoordinateLatLonNilSafe(t *testing.T) {
 	Expect(ok).To(BeFalse())
 	_, _, ok = (&Coordinate{Type: "Point", Coordinates: []float64{1}}).LatLon()
 	Expect(ok).To(BeFalse(), "a malformed (<2) coordinate is not usable")
+}
+
+// TestGetSettlementRequest covers the lookup round-trip: the plural path (the
+// singular /settlement/<uuid> is a 404), the bearer, and the decode.
+func TestGetSettlementRequest(t *testing.T) {
+	RegisterTestingT(t)
+	var gotPath string
+	srv := authedTestServer(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		Expect(r.Header.Get("Authorization")).To(HavePrefix("Bearer eyJ"))
+		_, _ = io.WriteString(w, `{"uuid":"s1","primaryName":"Нижняя Верея","additionalNames":[],
+			"mainGeorequisite":{"level1":"Нижегородская область","level2":"город Выкса","year":2019},
+			"type":"село","status":"жилой",
+			"coordinate":{"type":"Point","coordinates":[41.976302,55.2479772]}}`)
+	})
+	defer srv.Close()
+
+	s, err := newTestClient(srv).GetSettlement(context.Background(), "s1")
+	Expect(err).ToNot(HaveOccurred())
+	Expect(gotPath).To(Equal("/api/v2/settlements/s1"))
+	Expect(s.PrimaryName).To(Equal("Нижняя Верея"))
+
+	lat, lon, ok := s.Coordinate.LatLon()
+	Expect(ok).To(BeTrue())
+	Expect(lat).To(BeNumerically("~", 55.2479772, 1e-6))
+	Expect(lon).To(BeNumerically("~", 41.976302, 1e-6))
+}
+
+// TestGetSettlementNotFound keeps the 404 mapping on the lookup used to validate
+// the settlement uuids place attributes speak.
+func TestGetSettlementNotFound(t *testing.T) {
+	RegisterTestingT(t)
+	srv := authedTestServer(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+	defer srv.Close()
+
+	_, err := newTestClient(srv).GetSettlement(context.Background(), "nope")
+	Expect(err).To(MatchError(ErrNotFound))
 }

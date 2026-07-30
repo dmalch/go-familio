@@ -10,7 +10,7 @@ import (
 )
 
 // userAgent identifies the CLI to familio.org.
-const userAgent = "go-familio-cli"
+const userAgent = "go-familio-cli/" + familio.Version
 
 // newClient builds a familio.Client from the resolved credentials. The
 // settlement commands work with no credentials (public endpoint); the
@@ -21,7 +21,11 @@ func newClient(g *globalOpts) (*familio.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return familio.NewClient(familio.Options{Cookies: cookies, UserAgent: userAgent})
+	return familio.NewClient(familio.Options{
+		Cookies:   cookies,
+		UserAgent: userAgent,
+		BaseURL:   g.baseURL,
+	})
 }
 
 // resolveCookies picks the session cookies using the same precedence as the

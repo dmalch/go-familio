@@ -121,3 +121,70 @@ func TestSourceCatalogUnmarshal(t *testing.T) {
 		Expect(s.Catalog.String()).To(Equal(want), body)
 	}
 }
+
+// TestCreateSourcePostsTheReferenceOnly locks the create round-trip: the write
+// carries only the three reference fields, and the enriched object comes back.
+func TestCreateSourcePostsTheReferenceOnly(t *testing.T) {
+	RegisterTestingT(t)
+	var gotMethod, gotPath string
+	var sent map[string]any
+
+	srv := authedTestServer(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath = r.Method, r.URL.Path
+		body, _ := io.ReadAll(r.Body)
+		Expect(json.Unmarshal(body, &sent)).To(Succeed())
+		_, _ = io.WriteString(w, `{"uuid":"case-1","type":"case","comment":"",
+			"name":"Ревизские сказки","requisites":"ГИА … ф. 145 оп. 1 д. 431",
+			"years":"1811 - 1811","catalog":null,
+			"createdAt":"2026-07-30T10:00:00+00:00","updatedAt":"2026-07-30T10:00:00+00:00"}`)
+	})
+	defer srv.Close()
+
+	src, err := newTestClient(srv).CreateSource(context.Background(), "p1",
+		SourceRef{UUID: "case-1", Type: SourceTypeCase})
+	Expect(err).ToNot(HaveOccurred())
+
+	Expect(gotMethod).To(Equal(http.MethodPost))
+	Expect(gotPath).To(Equal("/api/v2/persons/p1/sources"))
+	// Only the reference travels; name/requisites/years/comment are server-derived.
+	Expect(sent).To(HaveLen(3))
+	Expect(sent["uuid"]).To(Equal("case-1"))
+	Expect(sent["type"]).To(Equal("case"))
+	Expect(sent["catalogKey"]).To(BeNil())
+
+	Expect(src.Name).To(Equal("Ревизские сказки"))
+	Expect(src.Years).To(Equal("1811 - 1811"))
+}
+
+// TestDeleteSourceUsesTheEntityUUID pins the path id: a source is addressed by the
+// referenced entity's uuid, which is its identity within the person.
+func TestDeleteSourceUsesTheEntityUUID(t *testing.T) {
+	RegisterTestingT(t)
+	var gotMethod, gotPath string
+	srv := authedTestServer(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath = r.Method, r.URL.Path
+		w.WriteHeader(http.StatusNoContent)
+	})
+	defer srv.Close()
+
+	Expect(newTestClient(srv).DeleteSource(context.Background(), "p1", "case-1")).To(Succeed())
+	Expect(gotMethod).To(Equal(http.MethodDelete))
+	Expect(gotPath).To(Equal("/api/v2/persons/p1/sources/case-1"))
+}
+
+// TestGetPersonSourcesDecodesTheList covers the list read.
+func TestGetPersonSourcesDecodesTheList(t *testing.T) {
+	RegisterTestingT(t)
+	srv := authedTestServer(func(w http.ResponseWriter, r *http.Request) {
+		Expect(r.URL.Path).To(Equal("/api/v2/persons/p1/sources"))
+		_, _ = io.WriteString(w, `[{"uuid":"case-1","type":"case","name":"Ревизские сказки"},
+			{"uuid":"cp-1","type":"catalog_person","name":"Памяти героев","catalog":{"key":"gwarmil"}}]`)
+	})
+	defer srv.Close()
+
+	sources, err := newTestClient(srv).GetPersonSources(context.Background(), "p1")
+	Expect(err).ToNot(HaveOccurred())
+	Expect(sources).To(HaveLen(2))
+	Expect(sources[1].Type).To(Equal(SourceTypeCatalogPerson))
+	Expect(sources[1].Catalog.String()).To(Equal("gwarmil"))
+}

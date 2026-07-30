@@ -24,15 +24,15 @@ const tagsListFixture = `[
 // TestListTags locks the owner-addressed list read and the tag decode.
 func TestListTags(t *testing.T) {
 	RegisterTestingT(t)
-	srv := historyTestServer(func(w http.ResponseWriter, r *http.Request) {
+	srv := authedTestServer(func(w http.ResponseWriter, r *http.Request) {
 		Expect(r.Method).To(Equal(http.MethodGet))
-		Expect(r.URL.Path).To(Equal("/api/v2/users/" + historyOwner + "/tags"))
+		Expect(r.URL.Path).To(Equal("/api/v2/users/" + testOwnerUUID + "/tags"))
 		Expect(r.Header.Get("Authorization")).To(HavePrefix("Bearer eyJ"))
 		_, _ = io.WriteString(w, tagsListFixture)
 	})
 	defer srv.Close()
 
-	tags, err := newHistoryClient(srv).ListTags(context.Background())
+	tags, err := newTestClient(srv).ListTags(context.Background())
 	Expect(err).ToNot(HaveOccurred())
 	Expect(tags).To(HaveLen(2))
 
@@ -81,7 +81,7 @@ func TestTagInputEncoding(t *testing.T) {
 func TestCreateTag(t *testing.T) {
 	RegisterTestingT(t)
 	var gotBody []byte
-	srv := historyTestServer(func(w http.ResponseWriter, r *http.Request) {
+	srv := authedTestServer(func(w http.ResponseWriter, r *http.Request) {
 		Expect(r.Method).To(Equal(http.MethodPost))
 		Expect(r.URL.Path).To(Equal("/api/v2/tags"))
 		body, err := io.ReadAll(r.Body)
@@ -93,7 +93,7 @@ func TestCreateTag(t *testing.T) {
 	})
 	defer srv.Close()
 
-	tag, err := newHistoryClient(srv).CreateTag(context.Background(),
+	tag, err := newTestClient(srv).CreateTag(context.Background(),
 		TagInput{Name: "  Проверить  ", Color: TagColorLemonTint})
 	Expect(err).ToNot(HaveOccurred())
 
@@ -112,7 +112,7 @@ func TestCreateTag(t *testing.T) {
 // optimistic-lock header (the tags endpoints carry none).
 func TestUpdateTag(t *testing.T) {
 	RegisterTestingT(t)
-	srv := historyTestServer(func(w http.ResponseWriter, r *http.Request) {
+	srv := authedTestServer(func(w http.ResponseWriter, r *http.Request) {
 		Expect(r.Method).To(Equal(http.MethodPut))
 		Expect(r.URL.Path).To(Equal("/api/v2/tags/7"))
 		Expect(r.Header.Get("X-Base-Version")).To(BeEmpty())
@@ -121,7 +121,7 @@ func TestUpdateTag(t *testing.T) {
 	})
 	defer srv.Close()
 
-	tag, err := newHistoryClient(srv).UpdateTag(context.Background(), 7,
+	tag, err := newTestClient(srv).UpdateTag(context.Background(), 7,
 		TagInput{Name: "Новое", Color: TagColorLilacGlow, Description: "d"})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(tag.Name).To(Equal("Новое"))
@@ -131,14 +131,14 @@ func TestUpdateTag(t *testing.T) {
 // TestDeleteTag locks the delete path.
 func TestDeleteTag(t *testing.T) {
 	RegisterTestingT(t)
-	srv := historyTestServer(func(w http.ResponseWriter, r *http.Request) {
+	srv := authedTestServer(func(w http.ResponseWriter, r *http.Request) {
 		Expect(r.Method).To(Equal(http.MethodDelete))
 		Expect(r.URL.Path).To(Equal("/api/v2/tags/7"))
 		w.WriteHeader(http.StatusNoContent)
 	})
 	defer srv.Close()
 
-	Expect(newHistoryClient(srv).DeleteTag(context.Background(), 7)).To(Succeed())
+	Expect(newTestClient(srv).DeleteTag(context.Background(), 7)).To(Succeed())
 }
 
 // TestTagInputValidate covers the editor's rules, which the client applies
@@ -174,12 +174,12 @@ func TestTagInputValidate(t *testing.T) {
 func TestTagWriteValidationSkipsRequest(t *testing.T) {
 	RegisterTestingT(t)
 	called := false
-	srv := historyTestServer(func(w http.ResponseWriter, _ *http.Request) {
+	srv := authedTestServer(func(w http.ResponseWriter, _ *http.Request) {
 		called = true
 		w.WriteHeader(http.StatusOK)
 	})
 	defer srv.Close()
-	c := newHistoryClient(srv)
+	c := newTestClient(srv)
 
 	_, err := c.CreateTag(context.Background(), TagInput{Name: "", Color: TagColorRoseMist})
 	Expect(err).To(HaveOccurred())
@@ -194,14 +194,14 @@ func TestTagWriteValidationSkipsRequest(t *testing.T) {
 // TestGetPersonTags locks the per-person read.
 func TestGetPersonTags(t *testing.T) {
 	RegisterTestingT(t)
-	srv := historyTestServer(func(w http.ResponseWriter, r *http.Request) {
+	srv := authedTestServer(func(w http.ResponseWriter, r *http.Request) {
 		Expect(r.Method).To(Equal(http.MethodGet))
 		Expect(r.URL.Path).To(Equal("/api/v2/persons/p-1/tags"))
 		_, _ = io.WriteString(w, tagsListFixture)
 	})
 	defer srv.Close()
 
-	tags, err := newHistoryClient(srv).GetPersonTags(context.Background(), "p-1")
+	tags, err := newTestClient(srv).GetPersonTags(context.Background(), "p-1")
 	Expect(err).ToNot(HaveOccurred())
 	Expect(tags).To(HaveLen(2))
 	Expect(tags[0].Name).To(Equal("Проверить в архиве"))
@@ -212,7 +212,7 @@ func TestGetPersonTags(t *testing.T) {
 func TestAssignPersonTags(t *testing.T) {
 	RegisterTestingT(t)
 	var gotBody []byte
-	srv := historyTestServer(func(w http.ResponseWriter, r *http.Request) {
+	srv := authedTestServer(func(w http.ResponseWriter, r *http.Request) {
 		Expect(r.Method).To(Equal(http.MethodPost))
 		Expect(r.URL.Path).To(Equal("/api/v2/persons/p-1/tags"))
 		body, err := io.ReadAll(r.Body)
@@ -222,7 +222,7 @@ func TestAssignPersonTags(t *testing.T) {
 	})
 	defer srv.Close()
 
-	tags, err := newHistoryClient(srv).AssignPersonTags(context.Background(), "p-1",
+	tags, err := newTestClient(srv).AssignPersonTags(context.Background(), "p-1",
 		[]int{2832, 2833})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(tags).To(HaveLen(2))
@@ -238,7 +238,7 @@ func TestAssignPersonTags(t *testing.T) {
 func TestUnassignPersonTags(t *testing.T) {
 	RegisterTestingT(t)
 	var gotBody []byte
-	srv := historyTestServer(func(w http.ResponseWriter, r *http.Request) {
+	srv := authedTestServer(func(w http.ResponseWriter, r *http.Request) {
 		Expect(r.Method).To(Equal(http.MethodDelete))
 		Expect(r.URL.Path).To(Equal("/api/v2/persons/p-1/tags"))
 		Expect(r.Header.Get("Content-Type")).To(Equal("application/ld+json"))
@@ -249,7 +249,7 @@ func TestUnassignPersonTags(t *testing.T) {
 	})
 	defer srv.Close()
 
-	Expect(newHistoryClient(srv).UnassignPersonTags(context.Background(), "p-1",
+	Expect(newTestClient(srv).UnassignPersonTags(context.Background(), "p-1",
 		[]int{2832})).To(Succeed())
 
 	var sent []int
@@ -262,12 +262,12 @@ func TestUnassignPersonTags(t *testing.T) {
 func TestPersonTagsWriteGuards(t *testing.T) {
 	RegisterTestingT(t)
 	called := false
-	srv := historyTestServer(func(w http.ResponseWriter, _ *http.Request) {
+	srv := authedTestServer(func(w http.ResponseWriter, _ *http.Request) {
 		called = true
 		w.WriteHeader(http.StatusOK)
 	})
 	defer srv.Close()
-	c := newHistoryClient(srv)
+	c := newTestClient(srv)
 	ctx := context.Background()
 
 	_, err := c.AssignPersonTags(ctx, "p-1", nil)
@@ -288,7 +288,7 @@ func TestPersonTagsWriteGuards(t *testing.T) {
 func TestGetTagsByPersons(t *testing.T) {
 	RegisterTestingT(t)
 	var gotBody []byte
-	srv := historyTestServer(func(w http.ResponseWriter, r *http.Request) {
+	srv := authedTestServer(func(w http.ResponseWriter, r *http.Request) {
 		Expect(r.Method).To(Equal(http.MethodPost))
 		Expect(r.URL.Path).To(Equal("/api/v2/tags/get-by-persons-id-list"))
 		body, err := io.ReadAll(r.Body)
@@ -298,7 +298,7 @@ func TestGetTagsByPersons(t *testing.T) {
 	})
 	defer srv.Close()
 
-	byPerson, err := newHistoryClient(srv).GetTagsByPersons(context.Background(), []string{"p-1", "p-2"})
+	byPerson, err := newTestClient(srv).GetTagsByPersons(context.Background(), []string{"p-1", "p-2"})
 	Expect(err).ToNot(HaveOccurred())
 
 	var sent []string
@@ -339,12 +339,12 @@ func TestPersonTagsDecodesEmptyArray(t *testing.T) {
 // TestGetTagsByPersonsEmptyMap proves the quirk survives a real round trip.
 func TestGetTagsByPersonsEmptyMap(t *testing.T) {
 	RegisterTestingT(t)
-	srv := historyTestServer(func(w http.ResponseWriter, _ *http.Request) {
+	srv := authedTestServer(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, `[]`)
 	})
 	defer srv.Close()
 
-	byPerson, err := newHistoryClient(srv).GetTagsByPersons(context.Background(), []string{"p-1"})
+	byPerson, err := newTestClient(srv).GetTagsByPersons(context.Background(), []string{"p-1"})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(byPerson).To(BeEmpty())
 	Expect(byPerson["p-1"]).To(BeEmpty())
@@ -355,17 +355,17 @@ func TestGetTagsByPersonsEmptyMap(t *testing.T) {
 // not tag objects.
 func TestGetPersonRegularDecodesTagIDs(t *testing.T) {
 	RegisterTestingT(t)
-	srv := historyTestServer(func(w http.ResponseWriter, r *http.Request) {
+	srv := authedTestServer(func(w http.ResponseWriter, r *http.Request) {
 		Expect(r.URL.Path).To(Equal("/api/v2/persons/p-1"))
 		_, _ = io.WriteString(w, `{"uuid": "p-1", "displayName": "Сандин Яков", "type": "regularPerson",
-			"ownerId": "`+historyOwner+`", "gender": "male", "privacyType": "visible_for_all",
+			"ownerId": "`+testOwnerUUID+`", "gender": "male", "privacyType": "visible_for_all",
 			"tags": [2832, 2833]}`)
 	})
 	defer srv.Close()
 
-	rec, err := newHistoryClient(srv).GetPersonRegular(context.Background(), "p-1")
+	rec, err := newTestClient(srv).GetPersonRegular(context.Background(), "p-1")
 	Expect(err).ToNot(HaveOccurred())
-	Expect(rec.OwnerID).To(Equal(historyOwner))
+	Expect(rec.OwnerID).To(Equal(testOwnerUUID))
 	Expect(rec.Tags).To(Equal([]int{2832, 2833}))
 }
 
@@ -373,12 +373,12 @@ func TestGetPersonRegularDecodesTagIDs(t *testing.T) {
 // one an account with no tags always sees.
 func TestGetPersonRegularDecodesEmptyTags(t *testing.T) {
 	RegisterTestingT(t)
-	srv := historyTestServer(func(w http.ResponseWriter, _ *http.Request) {
+	srv := authedTestServer(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, `{"uuid": "p-1", "displayName": "Сандин Яков", "tags": []}`)
 	})
 	defer srv.Close()
 
-	rec, err := newHistoryClient(srv).GetPersonRegular(context.Background(), "p-1")
+	rec, err := newTestClient(srv).GetPersonRegular(context.Background(), "p-1")
 	Expect(err).ToNot(HaveOccurred())
 	Expect(rec.Tags).To(BeEmpty())
 }

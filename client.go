@@ -1,11 +1,22 @@
-// Package familio is a Go client for the familio.org genealogy API. Auth is
-// two-layer: a session `t` cookie (installed on a jar scoped to
-// https://familio.org/) bootstraps a JWT bearer scraped from the page's
-// __NEXT_DATA__ (see auth.go), which authenticates the /api/v2 calls.
+// Package familio is a Go client for the familio.org genealogy API.
 //
-// It covers the public settlement-persons read plus full person CRUD, life-fact
-// events, sources, and the wedding-event (marriage) endpoints. See API.md for
-// the endpoint reference.
+// It covers the account profile, the tree (both the one-request graph and a
+// bounded crawl), person CRUD, life-fact events — which is where familio keeps
+// kinship, including marriages — biographies, source citations, settlements, and
+// the change history, matches, and tags features. See API.md for the endpoint
+// reference and Client for the auth model.
+//
+// The domain is event-centric: familio has no relationship resource, so a
+// marriage is a wedding event with two spouse participants and a parent-child
+// link is a birth event. DeriveRelations normalizes that into
+// parents/spouses/children.
+//
+// Errors: every response >= 400 is an *APIError carrying the status, and wraps
+// ErrNotFound, ErrNotLoggedIn, ErrAccessDenied, or ErrConflict where the status
+// maps to one — so both errors.Is and errors.As work.
+//
+// This is an unofficial integration: familio.org publishes no write API and
+// these endpoints were reverse-engineered. See the README's Stability section.
 package familio
 
 import (
@@ -20,10 +31,14 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// Version is this module's version, sent in the default User-Agent. Bump it in
+// the same commit as the release tag (see CONTRIBUTING.md).
+const Version = "0.7.0"
+
 const (
 	defaultBaseURL   = "https://familio.org/"
 	apiV2Path        = "api/v2/"
-	defaultUserAgent = "terraform-provider-familio/0.1 (+https://github.com/dmalch/terraform-provider-familio)"
+	defaultUserAgent = "go-familio/" + Version + " (+https://github.com/dmalch/go-familio)"
 	defaultRateLimit = 2.0
 	defaultTimeout   = 60 * time.Second
 )
@@ -31,9 +46,10 @@ const (
 // Client talks to familio.org's /api/v2 surface with a session cookie.
 //
 // Authenticated calls need a JWT bearer, which familio does not mint via an API
-// endpoint — it embeds it in the page's __NEXT_DATA__. The client scrapes it
-// (using the session cookie) on first use and re-scrapes when it nears expiry;
-// see auth.go.
+// endpoint. The client obtains one on first use and refreshes it near expiry,
+// preferring the JWT the `t` session cookie already carries and falling back to
+// scraping the page's __NEXT_DATA__; see auth.go. A Client is safe for
+// concurrent use.
 type Client struct {
 	httpClient *http.Client
 	baseURL    *url.URL

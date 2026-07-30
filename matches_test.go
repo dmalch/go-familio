@@ -69,9 +69,9 @@ func TestListMatches(t *testing.T) {
 	RegisterTestingT(t)
 	var gotQuery url.Values
 	var gotBody []byte
-	srv := historyTestServer(func(w http.ResponseWriter, r *http.Request) {
+	srv := authedTestServer(func(w http.ResponseWriter, r *http.Request) {
 		Expect(r.Method).To(Equal(http.MethodPost))
-		Expect(r.URL.Path).To(Equal("/api/v2/users/" + historyOwner + "/matches/get-by-filters"))
+		Expect(r.URL.Path).To(Equal("/api/v2/users/" + testOwnerUUID + "/matches/get-by-filters"))
 		Expect(r.Header.Get("Authorization")).To(HavePrefix("Bearer eyJ"))
 		gotQuery = r.URL.Query()
 		body, err := io.ReadAll(r.Body)
@@ -81,7 +81,7 @@ func TestListMatches(t *testing.T) {
 	})
 	defer srv.Close()
 
-	page, err := newHistoryClient(srv).ListMatches(context.Background(), MatchFilter{})
+	page, err := newTestClient(srv).ListMatches(context.Background(), MatchFilter{})
 	Expect(err).ToNot(HaveOccurred())
 
 	Expect(gotQuery.Get("page")).To(Equal("1"))
@@ -111,7 +111,7 @@ func TestListMatches(t *testing.T) {
 	Expect(tree.OwnPerson.Type).To(Equal("regularPerson"))
 	Expect(tree.OwnPerson.DisplayName).To(Equal("Сандин Яков Перфилович"))
 	Expect(tree.OwnPerson.IsMine).To(BeTrue())
-	Expect(tree.OwnPerson.OwnerID).To(Equal(historyOwner))
+	Expect(tree.OwnPerson.OwnerID).To(Equal(testOwnerUUID))
 	Expect(tree.OwnPerson.CatalogKey).To(BeNil())
 	Expect(tree.OwnPerson.BirthPlace.PrimaryName).To(Equal("Журавкино"))
 	Expect(tree.OwnPerson.BirthPlace.MainGeorequisite.Level1).To(Equal("Республика Мордовия"))
@@ -173,15 +173,15 @@ func TestMatchFilterBody(t *testing.T) {
 func TestScrollMatches(t *testing.T) {
 	RegisterTestingT(t)
 	var gotQuery url.Values
-	srv := historyTestServer(func(w http.ResponseWriter, r *http.Request) {
+	srv := authedTestServer(func(w http.ResponseWriter, r *http.Request) {
 		Expect(r.Method).To(Equal(http.MethodPost))
-		Expect(r.URL.Path).To(Equal("/api/v2/users/" + historyOwner + "/matches/get-by-filters-scroll"))
+		Expect(r.URL.Path).To(Equal("/api/v2/users/" + testOwnerUUID + "/matches/get-by-filters-scroll"))
 		gotQuery = r.URL.Query()
 		_, _ = io.WriteString(w, `{"data": [], "dataVersionMark": "2026-07-27T08:23:44+00:00",
 		  "pager": {"lastItem": "3875136a-bacc-4aab-88f4-c6e812cef4ec", "hasMore": true}}`)
 	})
 	defer srv.Close()
-	c := newHistoryClient(srv)
+	c := newTestClient(srv)
 
 	page, err := c.ScrollMatches(context.Background(), MatchFilter{ItemsPerPage: 2}, "b5cc90fb-2429-4fac-83e7-6c3f5b8686a2")
 	Expect(err).ToNot(HaveOccurred())
@@ -220,9 +220,9 @@ const matchesFiltersFixture = `{
 func TestGetMatchFilters(t *testing.T) {
 	RegisterTestingT(t)
 	var gotBody []byte
-	srv := historyTestServer(func(w http.ResponseWriter, r *http.Request) {
+	srv := authedTestServer(func(w http.ResponseWriter, r *http.Request) {
 		Expect(r.Method).To(Equal(http.MethodPost))
-		Expect(r.URL.Path).To(Equal("/api/v2/users/" + historyOwner + "/matches/get-filters-data"))
+		Expect(r.URL.Path).To(Equal("/api/v2/users/" + testOwnerUUID + "/matches/get-filters-data"))
 		body, err := io.ReadAll(r.Body)
 		Expect(err).ToNot(HaveOccurred())
 		gotBody = body
@@ -230,7 +230,7 @@ func TestGetMatchFilters(t *testing.T) {
 	})
 	defer srv.Close()
 
-	filters, err := newHistoryClient(srv).GetMatchFilters(context.Background(),
+	filters, err := newTestClient(srv).GetMatchFilters(context.Background(),
 		MatchFilter{Statuses: []string{MatchStatusConfirmed}})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(string(gotBody)).To(ContainSubstring(`"status":["confirmed"]`))
@@ -263,7 +263,7 @@ func TestDecideMatches(t *testing.T) {
 	} {
 		var gotPath string
 		var gotBody []byte
-		srv := historyTestServer(func(w http.ResponseWriter, r *http.Request) {
+		srv := authedTestServer(func(w http.ResponseWriter, r *http.Request) {
 			Expect(r.Method).To(Equal(http.MethodPost))
 			gotPath = r.URL.Path
 			body, err := io.ReadAll(r.Body)
@@ -272,8 +272,8 @@ func TestDecideMatches(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		Expect(tc.call(newHistoryClient(srv))).To(Succeed(), tc.name)
-		Expect(gotPath).To(Equal("/api/v2/users/" + historyOwner + "/matches/" + tc.path))
+		Expect(tc.call(newTestClient(srv))).To(Succeed(), tc.name)
+		Expect(gotPath).To(Equal("/api/v2/users/" + testOwnerUUID + "/matches/" + tc.path))
 		// A bare array, not an object wrapping one.
 		Expect(string(gotBody)).To(Equal(
 			`["95e794df-4edb-4661-8bd9-61fd3fc6d52e","b028951e-1554-45ce-969f-f268326516b3"]`))
@@ -286,9 +286,9 @@ func TestDecideMatches(t *testing.T) {
 func TestDecideMatchesRejectsEmpty(t *testing.T) {
 	RegisterTestingT(t)
 	called := false
-	srv := historyTestServer(func(http.ResponseWriter, *http.Request) { called = true })
+	srv := authedTestServer(func(http.ResponseWriter, *http.Request) { called = true })
 	defer srv.Close()
-	c := newHistoryClient(srv)
+	c := newTestClient(srv)
 
 	Expect(c.ConfirmMatches(context.Background(), nil)).To(MatchError(ContainSubstring("no match uuids")))
 	Expect(c.RejectMatches(context.Background(), []string{})).To(MatchError(ContainSubstring("no match uuids")))

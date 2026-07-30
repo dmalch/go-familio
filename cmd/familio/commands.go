@@ -13,10 +13,11 @@ import (
 // runHelp -> printUsage -> the tree.
 func commandTree() map[string]*command {
 	return map[string]*command{
-		"whoami": {summary: "show the authenticated account uuid", run: runWhoami},
+		"whoami": {summary: "show the authenticated account (uuid, email, display name)", run: runWhoami},
 		"help":   {summary: "show this usage text", run: runHelp},
 
-		"tree": {summary: "crawl connected persons with structured relations ([-up|-down|-component] [-surname s] [-depth n])", run: runTree},
+		"tree":  {summary: "crawl connected persons with structured relations ([-up|-down|-component] [-surname s] [-depth n])", run: runTree},
+		"graph": {summary: "print the whole tree-editor canvas (layout + person summaries) in one request", run: runGraph},
 
 		"person": {summary: "person resource", sub: map[string]*command{
 			"get":           {summary: "fetch a person's record, relations, years, and events by uuid", run: runPersonGet},
@@ -94,17 +95,35 @@ func printCommands(w io.Writer, prefix string, sub map[string]*command) {
 	}
 }
 
-// runWhoami prints the uuid of the account that owns the active session.
+// runWhoami prints the account that owns the active session: its uuid, the
+// address it logs in with, and the account holder's name.
 func runWhoami(ctx context.Context, g *globalOpts, _ []string) error {
 	c, err := newClient(g)
 	if err != nil {
 		return err
 	}
-	uuid, err := c.AccountUUID(ctx)
+	profile, err := c.GetProfile(ctx)
 	if err != nil {
 		return err
 	}
-	return render(g.stdout, map[string]string{"uuid": uuid})
+	return render(g.stdout, profile)
+}
+
+// runGraph prints the account's tree as familio's editor canvas loads it — one
+// request, carrying each node's layout position and a person summary with
+// display-formatted dates. Use "familio tree <uuid>" for a rooted crawl with
+// structured dates, and note that a node's hasMore marks relatives the graph
+// omits.
+func runGraph(ctx context.Context, g *globalOpts, _ []string) error {
+	c, err := newClient(g)
+	if err != nil {
+		return err
+	}
+	graph, err := c.GetTreeGraph(ctx)
+	if err != nil {
+		return err
+	}
+	return render(g.stdout, graph)
 }
 
 // runHelp prints the usage text to stdout.

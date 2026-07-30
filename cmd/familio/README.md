@@ -28,16 +28,20 @@ in this order (matching the Terraform provider):
 
 The `settlement` commands hit a public endpoint and need no credentials.
 
+`FAMILIO_BASE_URL` overrides `https://familio.org/`. It exists so the CLI can be
+pointed at a fake server in tests; leave it unset in normal use.
+
 Global flags (`-cookies`, `-browser`) may appear **before or after** the
 command and its arguments — `familio person get <uuid> -browser chrome` works.
 
 ## Commands
 
 ```bash
-familio whoami                       # print the authenticated account uuid
+familio whoami                       # the authenticated account: uuid, email, display name
 familio person get <uuid>            # record + derived relations + birth/death years + events
 familio person set-biography <uuid>  # set a biography from -text or stdin (-append to keep existing)
 familio tree <uuid>                  # crawl connected persons with structured relations
+familio graph                        # the whole tree-editor canvas (layout + person cards) in one request
 familio marriage create <a> <b>      # link two persons with a wedding event
 familio marriage delete <p> <union>  # delete a marriage (union) by a participant + union uuid
 familio settlement get <uuid>        # a settlement (place) record
@@ -86,6 +90,30 @@ familio tree <uuid> [-up | -down | -component] [-surname <s>] [-depth <n>]
   keep a crawl from pulling living in-law branches. Non-matching people are
   still emitted, just not expanded.
 - `-depth <n>` caps the BFS distance from the root (`0` = unlimited).
+
+### `graph`
+
+Prints familio's whole tree-editor canvas in **one request**, centred on your own
+person: per node a layout position (`role`, the Russian kinship label, `layer`,
+parent and partner edges) plus a person summary (names, locality, photo,
+pre-formatted dates).
+
+```bash
+familio graph
+```
+
+It is the cheap way to see a tree — `tree <uuid>` spends one request per person —
+but mind three things:
+
+- A `nodeId` is `<person-uuid>.<n>`, not a person uuid: one person can be placed
+  twice. `personData.personId` is the uuid to feed `person get`.
+- `hasMore: true` means that node has relatives **not in the response**. The graph
+  is a window on the tree, not an inventory of it.
+- The dates are display strings (`29.11.1890 ст.`, `После 29.04.1926`), not
+  parseable values. Use `person get` (or `tree`) for structured dates.
+
+There is no children list — a child is the inverse of a `parents` edge, which
+`edges.layoutBasis` also states as parent→child pairs.
 
 ### `history list` / `history filters`
 

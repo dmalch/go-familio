@@ -2,8 +2,13 @@ package familio
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 )
+
+// sessionCookieName is familio's session cookie. Its value is itself the JWT the
+// authed API wants (see auth.go).
+const sessionCookieName = "t"
 
 // CookiesFromHeader parses a "name=value; name=value" cookie header (the form
 // copied out of a browser's DevTools Network panel, or the $FAMILIO_COOKIES env
@@ -26,7 +31,7 @@ func CookiesFromHeader(header string) []*http.Cookie {
 		}
 		cookies = append(cookies, &http.Cookie{
 			Name:  p[:eq],
-			Value: p[eq+1:],
+			Value: encodeCookieValue(p[eq+1:]),
 		})
 	}
 	return cookies
@@ -39,5 +44,33 @@ func CookieFromSessionToken(token string) []*http.Cookie {
 	if token == "" {
 		return nil
 	}
-	return []*http.Cookie{{Name: "t", Value: token}}
+	return []*http.Cookie{{Name: sessionCookieName, Value: encodeCookieValue(token)}}
+}
+
+// encodeCookieValue percent-encodes a value that net/http would otherwise refuse
+// to send. familio's `t` cookie holds a JSON object, and net/http silently drops
+// bytes that are illegal in a cookie value (notably `"`), which mangles the
+// credential — the browser sends it percent-encoded, so match that. A value that
+// is already legal (an encoded one included) is returned untouched, so this never
+// double-encodes.
+func encodeCookieValue(value string) string {
+	if isValidCookieValue(value) {
+		return value
+	}
+	return url.QueryEscape(value)
+}
+
+// isValidCookieValue reports whether every byte is legal in a cookie value, per
+// the set net/http enforces when writing the header.
+func isValidCookieValue(value string) bool {
+	for i := range len(value) {
+		b := value[i]
+		switch {
+		case b == '"', b == ';', b == '\\', b == ',', b == ' ':
+			return false
+		case b < 0x21 || b > 0x7e:
+			return false
+		}
+	}
+	return true
 }

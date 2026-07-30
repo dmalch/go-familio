@@ -84,8 +84,10 @@ func toHTTPCookies(in []sweetcookie.Cookie) []*http.Cookie {
 	out := make([]*http.Cookie, len(in))
 	for i, c := range in {
 		hc := &http.Cookie{
-			Name:     c.Name,
-			Value:    c.Value,
+			Name: c.Name,
+			// sweetcookie hands back the decoded value; familio's `t` holds JSON,
+			// which net/http would mangle on the wire (see encodeCookieValue).
+			Value:    encodeCookieValue(c.Value),
 			Domain:   c.Domain,
 			Path:     c.Path,
 			HttpOnly: c.HTTPOnly,
