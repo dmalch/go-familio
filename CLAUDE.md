@@ -79,6 +79,10 @@ Cookies come from `Options.Cookies`; build them with `CookiesFromHeader`
   Shared helpers are in `helpers_test.go`: `authedTestServer` (serves the token
   page on `/`), `newTestClient`, `newLiveClient`, `asMap`/`asSlice`. Fixtures are
   trimmed **real** responses — don't invent wire shapes.
-- Since v1, semver covers the Go API and the CLI's commands/flags; an *upstream*
-  familio break is a patch release. See the README's Stability section and
+- Since v1, semver covers **package `familio`'s exported identifiers only**.
+  `cmd/familio` is best-effort — its commands, flags and JSON output may break in a
+  minor release (note each in the changelog), because coupling them would let a flag
+  rename force a `/v2` module path on library importers. `FAMILIO_BASE_URL` is the
+  exception: it forwards to the exported `Options.BaseURL`, so it is stable. An
+  *upstream* familio break is a patch release. See the README's Stability section and
   `CONTRIBUTING.md` for the release flow.
