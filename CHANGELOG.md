@@ -1,3 +1,70 @@
+## 0.7.0
+
+The API-hygiene release ahead of 1.0: the changes that would need a major bump if
+they landed after the freeze. See the README's new **Stability** section for what
+semver covers here.
+
+### BREAKING
+
+- `CreatePerson` and `GetPersonDisplay` returned **unexported** types
+  (`*createResponse`, `*personDisplay`) — types a caller could not name and godoc
+  would not document. They are now `*CreatedPerson` and `*PersonDisplay`, with
+  the same fields. Code that binds the result with `:=` needs no change.
+
+### NEW
+
+- **Structured HTTP errors.** Every response `>= 400` now comes back as an
+  `*APIError` carrying `Method`, `Path`, `StatusCode` and a truncated `Body`,
+  reachable with `errors.As`. It **wraps** the sentinel for its status, so
+  existing `errors.Is(err, familio.ErrNotFound)` checks keep working unchanged.
+- `ErrConflict` maps **409** — a stale `X-Base-Version` optimistic-lock token on
+  `/basic`, `/biography` or a source comment. Previously indistinguishable from a
+  400 validation failure without matching on the error string.
+- `GetProfile` reads `GET /api/v2/profile`: the account's uuid and email plus the
+  account holder's name and gender. `AccountUUID` still answers the uuid alone
+  from the JWT claim, with no request.
+- `GetTreeGraph` reads `GET /api/v2/tree` — the account's whole tree in **one
+  request** as `{nodes: [{nodeId, nodeParams: {role, parents, partners}}]}`.
+  It carries no names or dates, so `CrawlTree` (one request per person, with
+  names, years and relations) keeps its place; pick by what you need.
+- Exported `Version`, which feeds the default `User-Agent`. That header
+  previously identified the library as `terraform-provider-familio/0.1`.
+
+### CHANGED
+
+- **Auth skips the page fetch when it can.** familio's `t` session cookie value
+  is itself a JWT, so the client now uses it directly when it is valid, and only
+  falls back to fetching and scraping `__NEXT_DATA__` when the cookie is opaque,
+  malformed, or near expiry. Same credentials, one less request per refresh; the
+  fallback keeps it working if familio changes the cookie.
+- `ErrAccessDenied` was documented as covering 401 and 403; 401 has always mapped
+  to `ErrNotLoggedIn`. Comment corrected, behaviour unchanged.
+- An `*APIError`'s message names what a mapped status means, so a bare 401 still
+  reads `not logged in` in a CLI or Terraform diagnostic.
+
+### CLI
+
+- `whoami` now prints the whole account record (uuid, email, display name)
+  instead of just the uuid.
+- New `graph` command: the tree's node ids and parent/partner edges in one
+  request. It is top-level rather than `tree graph` because `tree` is itself a
+  command taking a uuid.
+- `FAMILIO_BASE_URL` overrides the API host. It exists to point the CLI at a test
+  server; it is env-only and not a flag.
+
+### TESTS & DOCS
+
+- The event, source, person-basic and settlement **write paths had no unit
+  tests** — the calls with the `ld+json` and `X-Base-Version` subtleties. They do
+  now, along with the CLI write commands, the login-redirect guard, the retry and
+  body-replay path, and godoc examples. Library coverage 73.9% → 83.0%, CLI
+  53.0% → 75.4%.
+- Fixed a latent bug in the live tags test: `BeEmpty()` on an `int` id always
+  failed, so `TestListTagsLive` could not pass for an account that owns tags.
+- New `CONTRIBUTING.md` (gates, fixture policy, live-test and release flow), a
+  **Stability** section and a capability table in the README, and a rewritten
+  package doc.
+
 ## 0.6.0
 
 ### NEW

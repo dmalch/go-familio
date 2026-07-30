@@ -22,13 +22,15 @@ request/response shapes, and the auth model.
   `Event` and the `DateRange` date model, so the client is one cohesive
   package rather than per-resource subpackages.
 - `cmd/familio/` — a CLI façade over the library (`whoami`, `person get`,
-  `tree`, `settlement get`, `settlement persons`, `sources list`,
+  `tree`, `graph`, `settlement get`, `settlement persons`, `sources list`,
   `history list`/`history filters`, `matches list`/`matches filters`,
   `tags list`/`tags person`/`tags by-persons`/`tags colors`, plus the
   `marriage create/delete`, `person set-biography`,
   `matches confirm/reject/undecide` and `tags create/update/delete/assign/unassign`
   writes). The `matches` mutations and `tags delete`/`assign`/`unassign` prompt
   `[y/N]` on stderr unless `-yes` is given; nothing else in the CLI prompts.
+  CLI tests point the binary at an `httptest` server via `FAMILIO_BASE_URL`
+  (`serveAPI` in `servertest_test.go`); it is env-only, not a flag.
 - `examples/getperson/` — a minimal runnable usage example.
 
 ## Commands
@@ -45,16 +47,16 @@ make test-acceptance  # FAMILIO_NETWORK_TEST=1 — live read-only decode test
 CI (`.github/workflows/ci.yaml`) runs build / test / vet / lint as four
 parallel jobs on push to `main` and PRs.
 
-## Auth is two-layer (the non-obvious part)
+## Auth (the non-obvious part)
 
-The `t` session cookie alone is **rejected** by the authed API (401).
-familio's Next.js SSR embeds a short-lived **JWT bearer** in the page's
-`__NEXT_DATA__`. So the client, from the `t` cookie, scrapes an HTML page for
-`"token":"eyJ..."` (`auth.go`), caches it until ~5 min before its JWT `exp`,
-and sends it as `Authorization: Bearer` on `/api/v2/*` calls. The JWT's `uuid`
-claim is the account id, used as `?owner=` on creates and surfaced via
-`Client.AccountUUID`. The public settlement-persons read needs neither cookie
-nor bearer.
+The `t` cookie sent **as a cookie** is rejected (401); the authed API wants
+`Authorization: Bearer <JWT>` and there is no mint endpoint. The trick is that
+`t`'s *value* is itself a JWT, so `auth.go` sends it directly when it parses and
+is not near expiry — and otherwise falls back to fetching an HTML page and
+scraping `"token":"eyJ..."` out of `__NEXT_DATA__`. Either way the token is
+cached until ~5 min before its `exp`. The JWT's `uuid` claim is the account id,
+used as `?owner=` on creates and surfaced via `Client.AccountUUID`. The public
+settlement-persons read needs neither cookie nor bearer.
 
 Cookies come from `Options.Cookies`; build them with `CookiesFromHeader`
 (raw DevTools header), `CookieFromSessionToken` (bare `t` value), or
@@ -68,7 +70,15 @@ Cookies come from `Options.Cookies`; build them with `CookiesFromHeader`
   explicit enable list including `errcheck`, `errorlint`, `bodyclose`, `noctx`,
   `forcetypeassert`, `godot`). `godot` requires comment sentences to end with a
   period.
-- Errors from the client are wrapped with `%w`; `ErrNotLoggedIn` is returned
-  (via `CheckRedirect`) when a request bounces to a login path. `ErrNotFound`
-  and `ErrAccessDenied` map 404/403.
+- Errors: every response `>= 400` is an `*APIError` (method, path, status, body)
+  that **wraps** the sentinel for its status, so `errors.Is` and `errors.As` both
+  work. Sentinels: `ErrNotFound` 404, `ErrNotLoggedIn` 401 (or a `CheckRedirect`
+  bounce to a login path), `ErrAccessDenied` 403, `ErrConflict` 409 (stale
+  `X-Base-Version`). Other errors are wrapped with `%w`.
 - Tests use plain `go test` with `github.com/onsi/gomega` matchers (no Ginkgo).
+  Shared helpers are in `helpers_test.go`: `authedTestServer` (serves the token
+  page on `/`), `newTestClient`, `newLiveClient`, `asMap`/`asSlice`. Fixtures are
+  trimmed **real** responses — don't invent wire shapes.
+- Since v1, semver covers the Go API and the CLI's commands/flags; an *upstream*
+  familio break is a patch release. See the README's Stability section and
+  `CONTRIBUTING.md` for the release flow.

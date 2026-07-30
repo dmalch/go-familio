@@ -57,6 +57,26 @@ func main() {
 A runnable version of this example lives in
 [`examples/getperson/`](examples/getperson).
 
+## What it covers
+
+| Area | Reads | Writes |
+|---|---|---|
+| Account | `GetProfile`, `AccountUUID` | — |
+| Persons | `GetPersonBasic`, `GetPersonRegular`, `GetPersonDisplay`, `GetPersonEvents`, `ListSettlementPersons` (public) | `CreatePerson`, `UpdatePersonBasic`, `DeletePerson` |
+| Tree | `GetTreeGraph` (one request), `CrawlTree` (bounded BFS with names/years) | — |
+| Events | via `GetPersonEvents` + `DeriveRelations` | `CreateEvent`, `DeleteEvent` (marriages are `wedding` events) |
+| Biography | `GetPersonBiography` | `UpdatePersonBiography` |
+| Sources | `GetPersonSources` | `CreateSource`, `UpdateSourceComment`, `DeleteSource` |
+| Settlements | `GetSettlement` | — |
+| History («История изменений») | `ListPersonsHistory`, `GetHistoryFilters` | — (read-only audit log) |
+| Matches («Совпадения») | `ListMatches`, `ScrollMatches`, `GetMatchFilters` | `ConfirmMatches`, `RejectMatches`, `UndecideMatches` |
+| Tags («Метки») | `ListTags`, `GetPersonTags`, `GetTagsByPersons` | `CreateTag`, `UpdateTag`, `DeleteTag`, `AssignPersonTags`, `UnassignPersonTags` |
+
+Deliberately not covered: photo upload, the source **catalog browsing**
+endpoints (so `CreateSource` needs a reference uuid you obtained elsewhere), the
+`validate/*` helpers, and the matches bulk `*-by-filters` writes. See
+[`API.md`](API.md) › Known limitations.
+
 ## Command-line tool
 
 `cmd/familio` is a CLI façade over the library — handy for quick lookups
@@ -76,12 +96,18 @@ auth, and flags.
 
 ## Auth
 
-familio's auth is two-layer. The `t` session cookie alone is rejected by the
-authed API; familio's Next.js SSR embeds a short-lived JWT bearer in the page's
-`__NEXT_DATA__`. The client takes the `t` cookie, scrapes that JWT from an HTML
-page, caches it (refreshing ~5 minutes before its `exp`), and sends it as
-`Authorization: Bearer` on `/api/v2/*` calls. The JWT's `uuid` claim is the
-account id, exposed via `Client.AccountUUID`.
+familio's authed API does not accept a cookie — it wants a JWT in
+`Authorization: Bearer`, and there is no endpoint that mints one. The client gets
+one of two ways, transparently:
+
+1. **From the cookie.** familio's `t` session cookie value *is* a JWT, so when it
+   carries one that is still valid the client uses it directly.
+2. **From the page.** Otherwise it fetches a familio.org HTML page with the
+   cookie and scrapes the JWT familio's Next.js SSR embeds in `__NEXT_DATA__`.
+
+Either way the token is cached and refreshed ~5 minutes before its `exp`. The
+JWT's `uuid` claim is the account id, exposed via `Client.AccountUUID` and used
+as `?owner=` on creates.
 
 Supply the session cookie via `Options.Cookies`, built with one of:
 
@@ -100,12 +126,42 @@ The settlement-persons read is public and needs no credentials.
 - Retries on `429` and transient `5xx` responses.
 - JWT bearer cached and refreshed automatically with a 5-minute skew before
   expiry.
-- `ErrNotLoggedIn`, `ErrNotFound`, and `ErrAccessDenied` map the auth/404/403
-  cases for `errors.Is` checks.
+- Every response `>= 400` is an `*APIError` carrying the method, path, status and
+  body, wrapping a sentinel where one applies — so `errors.Is(err,
+  familio.ErrNotFound)` and a status check both work:
+
+  ```go
+  if errors.Is(err, familio.ErrConflict) { /* stale X-Base-Version: re-read */ }
+
+  var apiErr *familio.APIError
+  if errors.As(err, &apiErr) { log.Print(apiErr.StatusCode, apiErr.Body) }
+  ```
+
+  The sentinels are `ErrNotFound` (404), `ErrNotLoggedIn` (401 or a login
+  redirect), `ErrAccessDenied` (403), and `ErrConflict` (409 — a stale
+  `X-Base-Version` on `/basic`, `/biography`, or a source comment).
 - Derived views on top of the raw events: `DeriveRelations(events, uuid)` →
   normalized `parents`/`spouses`/`children` (spouses carry the wedding-event
   "union" uuid), `BirthYear`/`DeathYear`, and `Client.CrawlTree` for a bounded
   BFS over the connected persons.
+
+## Stability
+
+Semantic versioning applies to the **Go API**: the exported identifiers of
+package `familio`, and `cmd/familio`'s commands and flags. Those will not change
+incompatibly within a major version.
+
+It cannot apply to familio.org. The endpoints here are reverse-engineered from a
+web app that publishes no API and makes no compatibility promise, so:
+
+- **An upstream break is fixed in a patch release**, not a major bump. If
+  familio changes a response shape, the fix that follows it is `x.y.Z`.
+- New endpoint coverage is a minor release.
+- Live decode tests (`make test-acceptance`) are how upstream drift gets caught;
+  CI cannot run them, so they run before releases.
+
+The library is only meant for your own genealogy data with a session you
+established yourself.
 
 ## Documentation
 
@@ -116,15 +172,11 @@ auth model) is documented in [`API.md`](API.md).
 
 ## Contributing
 
-```bash
-make test     # unit tests (no network)
-make lint     # golangci-lint
-make check    # build + vet + lint + test (CI parity)
-```
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). In short:
 
-The live decode test self-skips unless `FAMILIO_NETWORK_TEST=1` is set; run
-`make test-acceptance` to exercise it against production data before pushing
-changes that touch endpoint or wire-shape code. CI does not run it.
+```bash
+make check    # build + vet + lint + test — the same gates CI runs
+```
 
 ## License
 

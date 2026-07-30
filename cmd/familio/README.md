@@ -28,16 +28,20 @@ in this order (matching the Terraform provider):
 
 The `settlement` commands hit a public endpoint and need no credentials.
 
+`FAMILIO_BASE_URL` overrides `https://familio.org/`. It exists so the CLI can be
+pointed at a fake server in tests; leave it unset in normal use.
+
 Global flags (`-cookies`, `-browser`) may appear **before or after** the
 command and its arguments — `familio person get <uuid> -browser chrome` works.
 
 ## Commands
 
 ```bash
-familio whoami                       # print the authenticated account uuid
+familio whoami                       # the authenticated account: uuid, email, display name
 familio person get <uuid>            # record + derived relations + birth/death years + events
 familio person set-biography <uuid>  # set a biography from -text or stdin (-append to keep existing)
 familio tree <uuid>                  # crawl connected persons with structured relations
+familio graph                        # the whole tree's node ids + parent/partner edges, in one request
 familio marriage create <a> <b>      # link two persons with a wedding event
 familio marriage delete <p> <union>  # delete a marriage (union) by a participant + union uuid
 familio settlement get <uuid>        # a settlement (place) record
@@ -86,6 +90,21 @@ familio tree <uuid> [-up | -down | -component] [-surname <s>] [-depth <n>]
   keep a crawl from pulling living in-law branches. Non-matching people are
   still emitted, just not expanded.
 - `-depth <n>` caps the BFS distance from the root (`0` = unlimited).
+
+### `graph`
+
+Prints the account's whole tree exactly as familio's editor loads it — one
+request, `{nodes: [{nodeId, nodeParams: {role, parents, partners}}]}`, where
+every `nodeId` is a person uuid and each edge carries the other person's `sex`.
+
+```bash
+familio graph
+```
+
+It is the cheap way to see a tree's shape: `tree <uuid>` spends one request per
+person and returns names, years and relations, while `graph` spends one request
+total and returns neither. There is no children list — a child is the inverse of
+a `parents` edge. Feed a `nodeId` to `person get` to resolve it.
 
 ### `history list` / `history filters`
 

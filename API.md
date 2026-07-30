@@ -30,8 +30,13 @@ credential is a **JWT bearer**:
 3. Every `/api/v2/*` call carries `Authorization: Bearer <jwt>`. With the bearer,
    `GET /api/v2/profile` / `/tree` / `/persons/<uuid>` return **200**; without it, **401**.
 
-There is no token-mint endpoint (`/api/v2/auth/*`, `/me`, `/token` all 404) — the
-SSR-embedded token is the only source.
+There is no token-mint endpoint (`/api/v2/auth/*`, `/me`, `/token` all 404).
+
+**The cookie *is* the token.** The distinction is where it travels, not what it is: sending `t` as a
+**Cookie** header is rejected (401), but the same value sent as `Authorization: Bearer` is accepted —
+`t` holds the JWT. So the SSR scrape is a fallback, not the only source: it matters when the cookie
+came from somewhere that stores an opaque value, or when the JWT is near expiry and the page will
+render a fresher one.
 
 **Provider implication:** from the `t` cookie the client fetches a familio.org HTML page,
 scrapes `__NEXT_DATA__.token`, and sends it as `Authorization: Bearer`. The JWT `uuid` claim is
@@ -524,6 +529,24 @@ How the resources use the surface above:
   `/events`: parents from the own birth event (`OwnBirthEvent`), spouses from wedding events
   (`SpousesOf`), children as the inverse — births where the person is a `parent` (`ChildrenOf`).
 
+## Client coverage — what this library deliberately does not implement
+
+Everything documented above is implemented by `go-familio` **except** the
+following. These are choices, not oversights; each is additive, so any of them can
+arrive in a minor release without breaking the v1 surface.
+
+| Not implemented | Why | Consequence |
+|---|---|---|
+| Source **catalog browsing** — `/api/v2/{organizations,funds,registers,cases}` and `GET /persons?type=catalogPerson&names=…&bindAllowed=true` | the drill-down UI flow is several endpoints deep and only needed to *discover* a reference | `CreateSource` needs a reference uuid obtained elsewhere (a browser session) |
+| **Photo** — `POST`/`DELETE /persons/<uuid>/photo` | binary upload; no consumer needs it yet | `CreatePerson` always sends `photo: null` |
+| `PUT /api/v2/validate/complex-date`, `POST /api/v2/surnames/validate` | the client builds dates from a typed `DateRange`, so a server round-trip buys little | invalid dates surface as a 400 on the real write instead of ahead of it |
+| Matches bulk `{confirm,reject}-by-filters` | the filter body's `status` is a **scalar** here but an **array** on the reads, and confirming that asymmetry means mass-mutating real matches | use the `*-by-ids` endpoints, which cover the same ground safely |
+| A tag facet / name search on `GET /persons` | familio has none | tags are read per person or in bulk, never as a search dimension |
+| `GET /api/v2/persons?names=…` free-text person search | no consumer yet | the only person list is settlement-scoped |
+
+`ListSettlementPersons` also pages the whole settlement into memory (~20 k rows
+for a large one) with no caller-side limit.
+
 ## Known limitations & open questions
 
 1. **Wedding events don't upsert** — re-POSTing a `wedding` duplicates it (the upsert trick is
@@ -532,8 +555,9 @@ How the resources use the surface above:
    christening; `partners` stays RequiresReplace by design (a different pair is a different marriage).
 2. **`PUT …/events/<id>`** — blocked by an unknown concurrency-token field name; not needed
    while the POST-upsert covers births/deaths and delete+create covers weddings.
-3. **Token refresh** — the JWT lasts ~30 days; the client re-scrapes `__NEXT_DATA__.token` near
-   expiry rather than via a mint endpoint (none exists).
+3. **Token refresh** — the JWT lasts ~30 days and there is no mint endpoint. The `t` cookie's own
+   value is a usable JWT, so the client sends that when it is valid and falls back to re-scraping
+   `__NEXT_DATA__.token` (an opaque cookie, a malformed token, or one near expiry).
 
 ## Reverse-engineering method
 
