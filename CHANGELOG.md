@@ -1,3 +1,15 @@
+## 0.7.1
+
+### FIXED
+
+- `APIError.Unwrap` now derives its sentinel from `StatusCode` instead of a hidden
+  field set at construction. Every field of the struct is exported, so an
+  `APIError` a caller builds themselves — simulating a 409 in their own tests, say
+  — behaves exactly like one this package produced:
+  `errors.Is(&APIError{StatusCode: 409}, ErrConflict)` was **false** in 0.7.0 and
+  is now true, and the message names the reason. Errors produced by the client were
+  unaffected either way.
+
 ## 0.7.0
 
 The API-hygiene release ahead of 1.0: the changes that would need a major bump if
