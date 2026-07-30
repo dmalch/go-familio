@@ -28,8 +28,14 @@ in this order (matching the Terraform provider):
 
 The `settlement` commands hit a public endpoint and need no credentials.
 
-`FAMILIO_BASE_URL` overrides `https://familio.org/`. It exists so the CLI can be
-pointed at a fake server in tests; leave it unset in normal use.
+`FAMILIO_BASE_URL` overrides `https://familio.org/` — useful for pointing the CLI
+at a mock server or a proxy; leave it unset to talk to familio. It forwards to the
+library's exported `Options.BaseURL` and is covered by the same stability promise
+as that field (see the [README](../../README.md#stability)).
+
+The rest of this CLI is **best-effort**: commands, flags and JSON output may change
+incompatibly in a minor release, each time noted in the changelog. Pin an exact
+version if you script against it.
 
 Global flags (`-cookies`, `-browser`) may appear **before or after** the
 command and its arguments — `familio person get <uuid> -browser chrome` works.

@@ -1,3 +1,31 @@
+## 1.0.1
+
+Documentation only — no code changes.
+
+### CHANGED
+
+- **The stability promise is narrowed to the library.** 1.0.0 said semver covered
+  package `familio`'s exported identifiers *and* `cmd/familio`'s commands and flags.
+  It now covers the **library only**; the CLI is best-effort, and its commands, flags
+  and JSON output may change incompatibly in a minor release, each noted here.
+
+  This reduces what was promised a release earlier, which is worth stating plainly.
+  Two reasons:
+  - **One module, two audiences.** Honouring the wider promise meant a CLI flag
+    rename was a breaking change, and in Go that forces the module path to
+    `…/go-familio/v2` — an import-path migration for library consumers who never run
+    the CLI.
+  - **It protected the wrong thing.** "Commands and flags" said nothing about JSON
+    output shape, which is what scripts actually depend on. So it constrained
+    development where that was expensive and stayed silent where users were exposed.
+
+  If you script against the CLI, pin an exact version.
+
+- **`FAMILIO_BASE_URL` is documented as stable**, rather than as an internal testing
+  knob. It forwards to the exported `Options.BaseURL`, which semver already covers,
+  so disclaiming it bought nothing and only set a trap for anyone pointing the CLI at
+  a mock or proxy.
+
 ## 1.0.0
 
 **No functional changes from 0.7.1** — this release is the commitment, not new

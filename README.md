@@ -147,9 +147,18 @@ The settlement-persons read is public and needs no credentials.
 
 ## Stability
 
-Semantic versioning applies to the **Go API**: the exported identifiers of
-package `familio`, and `cmd/familio`'s commands and flags. Those will not change
-incompatibly within a major version.
+Semantic versioning applies to the **Go API** — the exported identifiers of
+package `familio`. Those will not change incompatibly within a major version.
+
+**`cmd/familio` is best-effort.** Its commands, flags and JSON output may change
+incompatibly in a minor release; each such change is called out in
+[`CHANGELOG.md`](CHANGELOG.md). The CLI is a convenience façade, and tying it to
+the same guarantee would mean a flag rename forces a `/v2` module path on library
+importers who never touch it. Pin an exact version if you script against it.
+
+`FAMILIO_BASE_URL` (the API host override) *is* stable: it forwards to the
+exported `Options.BaseURL`, so it is as supported as that field. Useful for
+pointing the CLI at a mock or a proxy.
 
 It cannot apply to familio.org. The endpoints here are reverse-engineered from a
 web app that publishes no API and makes no compatibility promise, so:
