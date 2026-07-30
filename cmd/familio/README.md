@@ -50,6 +50,15 @@ familio matches filters              # matches facets with counts
 familio matches confirm <uuid>…      # confirm matches by match uuid
 familio matches reject <uuid>…       # reject matches by match uuid
 familio matches undecide <uuid>…     # undo a confirm/reject
+familio tags list                    # the tags this account owns («Мои метки»)
+familio tags person <person-uuid>    # the tags assigned to a person
+familio tags by-persons <uuid>…      # tags of several persons, keyed by person uuid
+familio tags colors                  # the accepted palette colour codes (no network call)
+familio tags create                  # create a tag (-name -color [-description])
+familio tags update <tag-id>         # replace a tag's fields
+familio tags delete <tag-id>…        # delete tags
+familio tags assign <p> <tag-id>…    # assign tags to a person
+familio tags unassign <p> <tag-id>…  # unassign tags from a person
 familio help                         # full command list
 ```
 
@@ -159,6 +168,52 @@ issuing a request.
 Nothing here is destructive: `matches undecide` returns a match to the
 `undecided` state, undoing either decision.
 
+### `tags` — reads
+
+**«Метки»** are the account's own coloured labels, attached to persons to group
+them. Tags are a **Familio Plus** feature: without a subscription only the tag
+flagged `isFree` is usable, and only one of them, though the API returns the
+rest anyway.
+
+```bash
+familio tags list                            # the tag catalogue: id, tag, color, description, isFree
+familio tags person <person-uuid>            # what's assigned to one person
+familio tags by-persons <uuid> [<uuid>…]     # a map keyed by person uuid
+familio tags colors                          # the seven palette codes with their hexes
+```
+
+The identifier to pass around is the tag's **`id`**, and unlike every other
+familio id it is a small **integer** (`2832`), not a uuid — passing a uuid where
+a `<tag-id>` is expected is rejected up front. `color` is a palette **code**
+(`mint-mist`), never a hex. `tags colors` is a local lookup, so it works with no
+credentials configured. In `tags by-persons`, a person with no tags may be absent
+from the map rather than mapped to `[]`.
+
+### `tags` — writes
+
+```bash
+familio tags create -name "Проверить в архиве" -color mint-mist [-description "…"]
+familio tags update 2832 -name "…" -color rose-mist [-description "…"]
+familio tags delete   [-yes] <tag-id> [<tag-id>…]
+familio tags assign   [-yes] <person-uuid> <tag-id> [<tag-id>…]
+familio tags unassign [-yes] <person-uuid> <tag-id> [<tag-id>…]
+```
+
+- `-name` and `-color` are required on both `create` and `update`; a name over
+  1000 characters, a description over 5000, or a colour outside the palette is
+  rejected **before** any request is made.
+- `update` replaces all three fields, so omitting `-description` clears it.
+- `assign` **adds** tags — it does not replace the person's set, and
+  re-assigning an already-assigned tag is a no-op. Both `assign` and `unassign`
+  print the person's refreshed tag list afterwards.
+- `delete` removes the tag itself and unassigns it from every person;
+  `unassign` only breaks the link. Both prompt `[y/N]` on stderr (stdout stays
+  pure JSON) unless `-yes` is given, and declining — including on an empty or
+  closed stdin — aborts without issuing a request.
+
+Only a person's **author** may manage that person's tags, so these calls fail
+with an access error on someone else's profile.
+
 ## Examples
 
 ```bash
@@ -175,9 +230,13 @@ familio sources list 3a2b…uuid
 familio history list -operation update -from 2026-07-01
 familio matches list -status undecided -min-score 90
 familio matches filters
+familio tags list
+familio tags person 3a2b…uuid
 
 # Writes (real mutations on your account):
 familio matches reject -yes <match-uuid>      # undo with: familio matches undecide <match-uuid>
+familio tags create -name "Проверить в архиве" -color mint-mist
+familio tags assign -yes 3a2b…uuid 2832       # undo with: familio tags unassign …
 familio marriage create 3a2b…uuid 9f0e…uuid -date 1850-06-12 -comment "венчание"
 familio marriage delete 3a2b…uuid <union-uuid>
 echo "Жил-был человек." | familio person set-biography 3a2b…uuid

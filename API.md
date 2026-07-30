@@ -128,7 +128,8 @@ familio's «Место рождения / смерти». It is a **structured o
   `{ uuid, type:"regularPerson", displayName, originalDisplayName, shortDisplayName, ownerId,
   gender, birthPlace, deathPlace, deathSettlementText, photo, biography, isMine, isMe,
   canBuildTree, privacyType, updatedAt, tags, isGrantedToMe }`. `ownerId` (the owning account)
-  is here but **not** on the public settlement list.
+  is here but **not** on the public settlement list; `tags` is the person's «метки» (see the
+  Tags sub-resource below).
 - `GET /api/v2/persons/<uuid>/basic` → `{ uuid, createdAt, updatedAt, gender, privacy,
   firstName, lastName, middleName, birthLastName, birthFirstName }` — the edit-form source.
 - `GET /api/v2/persons/<uuid>/events` → `[{ uuid, type, date, settlement, comment,
@@ -408,6 +409,84 @@ is **polymorphic**, discriminated by `type`:
 
 `dataVersionMark` (e.g. `"2026-07-27T08:23:44+00:00"`) stamps the match set the page was computed
 from; it is only needed as `X-Base-Version` on the bulk filter-wide writes.
+
+### Tags sub-resource (Bearer, Familio Plus)
+
+**«Метки»** (the `/profile/my-tags` page) are the account's own coloured labels, attached to
+persons to group them — "Метки помогают группировать записи о персонах и быстрее находить нужных
+людей". A tag belongs to the account that created it, and **only a person's author may manage that
+person's tags**.
+
+Two collections, and they are *not* siblings: the tag catalogue is a **top-level `/tags`**
+resource (listed via the account owner's uuid), while the person↔tag links live under
+`/persons/<uuid>/tags`.
+
+| Method | Path | Body | Purpose |
+|---|---|---|---|
+| `GET` | `/api/v2/users/<ownerUuid>/tags` | — | the account's tags; **unpaged bare array** |
+| `POST` | `/api/v2/tags` | `{tag,color,description}` | create → the new tag, with its `id` |
+| `PUT` | `/api/v2/tags/<tagId>` | `{tag,color,description}` | update → the refreshed tag |
+| `DELETE` | `/api/v2/tags/<tagId>` | — | delete (unassigns it from every person) |
+| `POST` | `/api/v2/tags/get-by-persons-id-list` | `[personUuid]` | bulk: tags per person |
+| `GET` | `/api/v2/persons/<personUuid>/tags` | — | one person's assigned tags |
+| `POST` | `/api/v2/persons/<personUuid>/tags` | `[tagId]` | assign → **200** + the person's refreshed tag list |
+| `DELETE` | `/api/v2/persons/<personUuid>/tags` | `[tagId]` | unassign → **204**, empty body |
+
+Both person-link writes take a **bare JSON array** of tag ids, like the matches `*-by-ids`
+endpoints — but they are **asymmetric in what they return**: assign echoes the person's whole
+refreshed tag list, unassign answers 204 with nothing (re-read `GET …/tags` if you need it).
+Assign **adds**; it never replaces the person's set, and re-assigning an already-assigned tag is a
+no-op. Note there is **no `X-Base-Version`** on any tags call — unlike `/basic`, `/biography` and
+source comments, tags carry no optimistic lock.
+
+**Tag (read shape):**
+```jsonc
+{ "id": 2832,                       // an INTEGER — tags are the one resource not keyed by a uuid
+  "tag": "Проверить в архиве",      // «Название»; the writable field is `tag`, not `name`
+  "color": "mint-mist",             // a palette CODE, not a hex value — see below
+  "description": "Нужен запрос в ЦГА",
+  "isFree": true }                  // server-computed; see the Plus gating below
+```
+
+`id` being a small **integer** rather than a uuid is the trap worth remembering: every other
+familio identifier in this document is a uuid string, so a `string`-typed field here fails to
+decode (`cannot unmarshal number into … of type string`). The ids are sequential and
+account-global.
+
+**`color` is a palette code.** familio never accepts or returns a hex; the UI maps seven fixed
+codes to pastel fills:
+
+| code | fill | code | fill |
+|---|---|---|---|
+| `rose-mist` | `#FFEBEB` | `ice-blue` | `#EBFEFF` |
+| `soft-peach` | `#FFF4EB` | `lavender-haze` | `#EBEBFF` |
+| `lemon-tint` | `#FDFFEB` | `lilac-glow` | `#FAEBFF` |
+| `mint-mist` | `#EBFFEB` | | |
+
+**Validation the web editor applies before it will submit** (mirrored by this client's
+`TagInput.Validate`): `tag` is required and trimmed, ≤ **1000** characters, and must be unique
+**case-insensitively** among the account's tags (`«Метка с таким текстом уже создана»`); `color` is
+required; `description` is optional, ≤ **5000** characters. The uniqueness rule needs the whole
+list, so this client leaves it to the caller/server.
+
+**Familio Plus gating.** Tags are a Plus feature. On a non-Plus account only the tags flagged
+`isFree: true` are usable, and **at most one** of them — the UI shows «Доступно с подпиской
+Familio Plus … только одна метка» and renders the rest disabled rather than hiding them. So the
+list read can return tags a free account cannot actually assign. This is UI-side policy; the API
+returns everything and this client surfaces `IsFree` without enforcing anything.
+
+**The bulk read's empty-map trap.** `get-by-persons-id-list` returns a **map keyed by person
+uuid** — `{"<personUuid>": [ {tag}, … ]}` — but the PHP backend serializes an *empty*
+associative array as **`[]`**, not `{}`. A stock Go map decoder rejects that, hence
+`PersonTags.UnmarshalJSON`. Persons with no tags may also simply be absent from a non-empty map.
+
+**The `regularPerson` view's `tags` are bare ids.** `GET /persons/<uuid>` returns
+`"tags": [2832]` — integer `Tag.id` values, *not* tag objects (this client exposes them as
+`RegularRecord.Tags []int`). Resolve them against the account's list, or read the full objects from
+`GET /persons/<uuid>/tags`.
+
+There is **no tag facet on the persons list** — `GET /api/v2/persons` takes no tag filter, so tags
+are read per person or in bulk, never used as a search dimension.
 
 ## Provider mapping
 

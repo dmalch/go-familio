@@ -274,6 +274,10 @@ type RegularRecord struct {
 	OwnerID     string `json:"ownerId"`
 	Gender      string `json:"gender"`
 	PrivacyType string `json:"privacyType"`
+	// Tags are the ids of the tags («метки») assigned to the person — bare
+	// Tag.ID values, not tag objects. Resolve them against ListTags, or read
+	// the full objects with GetPersonTags.
+	Tags []int `json:"tags"`
 }
 
 // GetPersonRegular reads the regularPerson view, including the owning account

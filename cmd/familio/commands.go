@@ -40,6 +40,17 @@ func commandTree() map[string]*command {
 			"reject":   {summary: "reject matches by <match-uuid>… ([-yes]; reversible with \"matches undecide\")", run: runMatchesReject},
 			"undecide": {summary: "return matches to the undecided state by <match-uuid>… ([-yes])", run: runMatchesUndecide},
 		}},
+		"tags": {summary: "person tags («метки», Familio Plus)", sub: map[string]*command{
+			"list":       {summary: "list the tags this account owns («Мои метки»)", run: runTagsList},
+			"person":     {summary: "list the tags assigned to a person by <person-uuid>", run: runTagsPerson},
+			"by-persons": {summary: "list the tags of several persons by <person-uuid>…, keyed by person", run: runTagsByPersons},
+			"colors":     {summary: "show the accepted palette colour codes and their hexes (no network call)", run: runTagsColors},
+			"create":     {summary: "create a tag (-name s -color c [-description s])", run: runTagsCreate},
+			"update":     {summary: "replace a tag's fields by <tag-id> (-name s -color c [-description s])", run: runTagsUpdate},
+			"delete":     {summary: "delete tags by <tag-id>… ([-yes]; unassigns them from every person)", run: runTagsDelete},
+			"assign":     {summary: "assign tags to a person: <person-uuid> <tag-id>… ([-yes])", run: runTagsAssign},
+			"unassign":   {summary: "unassign tags from a person: <person-uuid> <tag-id>… ([-yes])", run: runTagsUnassign},
+		}},
 		"history": {summary: "person change history (Familio Plus)", sub: map[string]*command{
 			"list":    {summary: "list change-history entries ([-person u] [-operation op] [-block b] [-from d] [-till d] [-text s] [-page n] …)", run: runHistoryList},
 			"filters": {summary: "show the history filter facets (authors, operations, data types, …) with counts", run: runHistoryFilters},

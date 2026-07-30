@@ -1,3 +1,37 @@
+## 0.6.0
+
+### NEW
+
+- **Tags («Метки»).** New support for familio's person labels — the `/profile/my-tags` feature.
+  `Client.ListTags(ctx)` reads the account's tag catalogue, `CreateTag`/`UpdateTag`/`DeleteTag`
+  manage it, and `GetPersonTags`/`AssignPersonTags`/`UnassignPersonTags` manage the links between
+  a person and its tags. `GetTagsByPersons(ctx, uuids)` is the bulk read the tree and person-list
+  views use, returning a `PersonTags` map keyed by person uuid. See `API.md` › Tags sub-resource.
+- `TagInput.Validate` mirrors the rules the web editor applies before it submits: a non-blank name
+  within `TagNameMaxLen` (1000), one of the seven palette codes, and a description within
+  `TagDescriptionMaxLen` (5000). `CreateTag` and `UpdateTag` call it, so bad input fails without
+  spending a request. The exported `TagColors` / `TagColorHex` carry the palette in UI order —
+  familio stores a colour *code* (`mint-mist`), never a hex.
+- Three shape notes worth knowing when consuming `Tag`. **`ID` is an `int`** — tags are the one
+  familio resource keyed by a small sequential integer rather than a uuid, so the assign/unassign
+  and update/delete calls take `int`, and `RegularRecord.Tags` (the `regularPerson` view's `tags`)
+  is a `[]int` of ids, not tag objects. `AssignPersonTags` returns the person's refreshed
+  `[]Tag` because the endpoint echoes it, while `UnassignPersonTags` answers 204 and returns only
+  an error. And `IsFree` is server-computed — tags are Plus-gated, and a non-Plus account can
+  actually use only one tag, the one flagged free. The API returns the others anyway; nothing here
+  enforces the limit.
+
+### CLI
+
+- New `tags list`, `tags person <person-uuid>` and `tags by-persons <person-uuid>…` reads, plus
+  `tags colors`, which prints the accepted palette codes with their hexes and makes no request.
+- New `tags create` / `tags update <tag-id>` writes taking `-name`, `-color` and `-description`.
+  Invalid input is reported before any request is made.
+- New `tags delete <tag-id>…` and `tags assign` / `tags unassign <person-uuid> <tag-id>…`. Like
+  the `matches` mutations they prompt `[y/N]` on stderr, listing what they are about to touch;
+  `-yes` skips the prompt for scripted use, and declining or an empty stdin aborts without a
+  request. `assign`/`unassign` print the person's refreshed tag list afterwards.
+
 ## 0.5.0
 
 ### NEW
