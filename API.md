@@ -32,11 +32,29 @@ credential is a **JWT bearer**:
 
 There is no token-mint endpoint (`/api/v2/auth/*`, `/me`, `/token` all 404).
 
-**The cookie *is* the token.** The distinction is where it travels, not what it is: sending `t` as a
-**Cookie** header is rejected (401), but the same value sent as `Authorization: Bearer` is accepted —
-`t` holds the JWT. So the SSR scrape is a fallback, not the only source: it matters when the cookie
-came from somewhere that stores an opaque value, or when the JWT is near expiry and the page will
-render a fresher one.
+**The cookie carries the token.** The distinction is where it travels, not what it is: sending `t` as
+a **Cookie** header is rejected (401), but the JWT inside it, sent as `Authorization: Bearer`, is
+accepted (confirmed live 2026-07-30). `t` is **not** a bare JWT — it is a URL-encoded JSON envelope:
+
+```jsonc
+{ "token": "eyJ…",                    // the /api/v2 bearer
+  "synapseToken": "syt_…" }           // familio's Matrix/chat token — NOT a credential here
+```
+
+Two traps when reading `t`:
+
+- **Parse it as JSON, don't sniff it.** The inner JWT contributes exactly two dots, so splitting the
+  raw envelope on `.` yields three parts and a naive JWT parser will decode the middle one happily —
+  then send the whole envelope as the bearer, earning `401 {"code":401,"message":"Invalid JWT
+  Token"}`.
+- **The value needs percent-encoding on the wire.** It contains `"`, which is illegal in a cookie
+  value; Go's `net/http` silently drops such bytes and mangles the credential. Browsers send it
+  encoded — match that. (This is why cookies lifted straight out of a browser store used to look
+  like a "stale session".)
+
+So the SSR scrape is a fallback, not the only source: it matters when the cookie holds an opaque
+value, when the envelope has no usable token, or when the JWT is near expiry and the page will render
+a fresher one.
 
 **Provider implication:** from the `t` cookie the client fetches a familio.org HTML page,
 scrapes `__NEXT_DATA__.token`, and sends it as `Authorization: Bearer`. The JWT `uuid` claim is
@@ -127,8 +145,7 @@ familio's «Место рождения / смерти». It is a **structured o
 
 - `GET /api/v2/profile` → `{ user:{uuid,email,…}, profile:{displayName,firstName,lastName,
   middleName,gender,…} }` — the current account.
-- `GET /api/v2/tree` → `{ nodes:[{ nodeId, nodeParams:{ role, parents:[{sex,nodeId}],
-  partners:[…] } }] }` — the tree graph.
+- `GET /api/v2/tree` → the tree-canvas graph — see [Tree graph](#tree-graph-bearer) below.
 - `GET /api/v2/persons/<uuid>` → the `regularPerson` view:
   `{ uuid, type:"regularPerson", displayName, originalDisplayName, shortDisplayName, ownerId,
   gender, birthPlace, deathPlace, deathSettlementText, photo, biography, isMine, isMe,
@@ -141,6 +158,57 @@ familio's «Место рождения / смерти». It is a **structured o
   participants, … }]`.
 - Frontend routes (`_buildManifest`): `/persons/new`, `/persons/new/simple/[id]`,
   `/persons/[personId]`, `/my-tree`, `/tree`, `/persons`.
+
+### Tree graph (Bearer)
+
+`GET /api/v2/tree` returns the whole tree-editor canvas in **one request**, centred on the
+account's own person. Confirmed live 2026-07-30 (17 nodes on the test account).
+
+```jsonc
+{ "nodes": [ {
+    "nodeId": "ee6f86f4-…-35befb3606dd.1",   // personUuid + a PLACEMENT SUFFIX — not a bare uuid
+    "nodeParams": {
+      "role": "parent",                       // central_person | parent | child | spouse
+      "roleName": "Прадедушка",               // Russian kinship label vs. the central person
+      "roleShortName": "Прадедушка", "roleNameAccusative": "прадедушку",
+      "parents":  [ {"sex":"male","nodeId":"6ca2b100-….0"} ],  // OBJECTS, 0–2
+      "partners": [ "45613c61-….1" ],                          // BARE node ids — asymmetric
+      "layer": 3,                             // generational distance (0 = central person)
+      "isPlaceholder": false,
+      "hasMore": true,                        // more relatives exist OUTSIDE this response
+      "isRecursionFound": false },
+    "personData": {
+      "personId": "ee6f86f4-…-35befb3606dd",  // the real person uuid
+      "sex": "male", "lastName": "Мальчиков", "firstName": "Николай",
+      "patronymic": "Васильевич",             // = /basic's middleName, renamed
+      "birthFirstName": "", "birthLastName": "", "initials": "НМ",
+      "photo": "/images/user_files/<owner>/persons/<uuid>.thumb-400x400.jpg",
+      "locality": "Кириллово",
+      "dateBirth": "29.11.1890 ст.",          // DISPLAY strings, not parseable — see below
+      "dateDeath": "После 29.04.1926", "age": "", "hasDeathEvent": true,
+      "isPrivate": false, "isMe": false, "isMine": true, "isUserPerson": false,
+      "owner": "894dc7d5-…",
+      "basicUpdatedAt": "…", "photoUpdatedAt": "…", "biographyUpdatedAt": "…" } } ],
+  "edges": { "layoutBasis": [ {"source":"<parent nodeId>","target":"<child nodeId>"} ] },
+  "theme": [], "recursiveNodes": [] }
+```
+
+Four traps:
+
+- **`nodeId` is not a person uuid.** It is `<personUuid>.<n>`, because one person can be placed
+  more than once in a layout. `personData.personId` is the uuid; the `parents`/`partners`/`edges`
+  lists all speak **node ids**, so resolving an edge to a person means stripping the suffix.
+- **The two edge lists have different shapes** — `parents` holds `{sex, nodeId}` objects, `partners`
+  holds bare id strings. And there is **no children list**: a child is the inverse of a `parents`
+  edge (`edges.layoutBasis` states the same links as parent→child pairs).
+- **It is a window, not the whole tree.** `hasMore: true` marks a node with relatives the response
+  omits (15 of 17 nodes on the test account). Do not treat the node set as "every person I have".
+- **The dates are display strings**, day-first Russian, possibly qualified («После 29.04.1926») and
+  marking Julian dates with **«ст.»** (`29.11.1890 ст.`). For structured dates read the person's
+  `/events`.
+
+`theme` and `recursiveNodes` were both `[]` on every account observed, so their element shapes are
+unknown and this client does not model them.
 
 ### Persons — write (Bearer + `application/ld+json`)
 

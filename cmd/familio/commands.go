@@ -17,7 +17,7 @@ func commandTree() map[string]*command {
 		"help":   {summary: "show this usage text", run: runHelp},
 
 		"tree":  {summary: "crawl connected persons with structured relations ([-up|-down|-component] [-surname s] [-depth n])", run: runTree},
-		"graph": {summary: "print the account's whole tree graph (node ids + parent/partner edges) in one request", run: runGraph},
+		"graph": {summary: "print the whole tree-editor canvas (layout + person summaries) in one request", run: runGraph},
 
 		"person": {summary: "person resource", sub: map[string]*command{
 			"get":           {summary: "fetch a person's record, relations, years, and events by uuid", run: runPersonGet},
@@ -109,9 +109,11 @@ func runWhoami(ctx context.Context, g *globalOpts, _ []string) error {
 	return render(g.stdout, profile)
 }
 
-// runGraph prints the account's whole tree as familio's editor loads it — one
-// request, node ids plus parent/partner edges, no names or dates. Use
-// "familio tree <uuid>" for a rooted crawl with names, years and relations.
+// runGraph prints the account's tree as familio's editor canvas loads it — one
+// request, carrying each node's layout position and a person summary with
+// display-formatted dates. Use "familio tree <uuid>" for a rooted crawl with
+// structured dates, and note that a node's hasMore marks relatives the graph
+// omits.
 func runGraph(ctx context.Context, g *globalOpts, _ []string) error {
 	c, err := newClient(g)
 	if err != nil {

@@ -45,16 +45,24 @@ func TestRunGraph_PrintsTheTreeGraph(t *testing.T) {
 	cookies := serveAPI(t, func(w http.ResponseWriter, r *http.Request) {
 		g.Expect(r.URL.Path).To(Equal("/api/v2/tree"))
 		_, _ = io.WriteString(w, `{"nodes":[
-			{"nodeId":"p1","nodeParams":{"role":"root","parents":[],"partners":[]}},
-			{"nodeId":"p2","nodeParams":{"role":"child",
-			 "parents":[{"sex":"male","nodeId":"p1"}],"partners":[]}}]}`)
+			{"nodeId":"p1.1","nodeParams":{"role":"central_person","layer":0,
+			 "parents":[{"sex":"male","nodeId":"p2.1"}],"partners":[],"hasMore":false},
+			 "personData":{"personId":"p1","firstName":"Дмитрий","lastName":"Мальчиков",
+			  "patronymic":"Викторович","dateBirth":"09.05.1985","isMe":true}},
+			{"nodeId":"p2.1","nodeParams":{"role":"parent","roleName":"Отец","layer":1,
+			 "parents":[],"partners":[],"hasMore":true},
+			 "personData":{"personId":"p2","firstName":"Виктор","lastName":"Мальчиков",
+			  "dateBirth":"29.11.1890 ст.","hasDeathEvent":true}}],
+			"edges":{"layoutBasis":[{"source":"p2.1","target":"p1.1"}]}}`)
 	})
 
 	code, out, errb := runArgs("-cookies", cookies, "graph")
 	g.Expect(code).To(Equal(0), errb)
-	g.Expect(out).To(ContainSubstring(`"nodeId": "p1"`))
-	g.Expect(out).To(ContainSubstring(`"nodeId": "p2"`))
-	g.Expect(out).To(ContainSubstring(`"sex": "male"`))
+	g.Expect(out).To(ContainSubstring(`"nodeId": "p1.1"`))
+	g.Expect(out).To(ContainSubstring(`"personId": "p2"`))
+	g.Expect(out).To(ContainSubstring("Дмитрий"))
+	g.Expect(out).To(ContainSubstring("29.11.1890 ст."))
+	g.Expect(out).To(ContainSubstring(`"layoutBasis"`))
 }
 
 // TestRunPersonGet_PrintsBasicRelationsAndEvents covers the composite read: the

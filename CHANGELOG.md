@@ -23,20 +23,42 @@ semver covers here.
 - `GetProfile` reads `GET /api/v2/profile`: the account's uuid and email plus the
   account holder's name and gender. `AccountUUID` still answers the uuid alone
   from the JWT claim, with no request.
-- `GetTreeGraph` reads `GET /api/v2/tree` — the account's whole tree in **one
-  request** as `{nodes: [{nodeId, nodeParams: {role, parents, partners}}]}`.
-  It carries no names or dates, so `CrawlTree` (one request per person, with
-  names, years and relations) keeps its place; pick by what you need.
+- `GetTreeGraph` reads `GET /api/v2/tree` — familio's whole tree-editor canvas in
+  **one request**, centred on the account's own person. Each node carries its
+  layout position (role, Russian kinship label, generational layer, parent and
+  partner edges) *and* a person summary: names, locality, photo, pre-formatted
+  dates. Three things to know, all documented on the types and in API.md:
+  - a **`nodeId` is not a person uuid** — it is `<uuid>.<n>`, since one person can
+    be placed twice. Use `TreeGraphNode.PersonUUID()` or `PersonUUIDFromNodeID`,
+    because the parent/partner edges speak node ids.
+  - the graph is a **window**: `Params.HasMore` marks nodes whose further
+    relatives the response omits.
+  - the dates are **display strings** («После 29.04.1926», Julian marked «ст.»),
+    not parseable values. `CrawlTree` remains the way to get structured dates and
+    event uuids.
 - Exported `Version`, which feeds the default `User-Agent`. That header
   previously identified the library as `terraform-provider-familio/0.1`.
 
+### FIXED
+
+- **Cookies whose value needs encoding were being mangled.** familio's `t` cookie
+  holds a JSON object, and `net/http` silently drops the `"` bytes that are
+  illegal in a cookie value — so the credential arrived corrupted and familio
+  answered 401. Values that need it are now percent-encoded, as a browser sends
+  them (already-encoded values are left alone). This is what made
+  `CookiesFromBrowser` look like it returned a stale session.
+
 ### CHANGED
 
-- **Auth skips the page fetch when it can.** familio's `t` session cookie value
-  is itself a JWT, so the client now uses it directly when it is valid, and only
-  falls back to fetching and scraping `__NEXT_DATA__` when the cookie is opaque,
-  malformed, or near expiry. Same credentials, one less request per refresh; the
-  fallback keeps it working if familio changes the cookie.
+- **Auth skips the page fetch when it can.** familio's `t` cookie carries the
+  bearer — it is a JSON envelope `{"token":"eyJ…","synapseToken":"syt_…"}` — so
+  the client now takes the token from it directly and only falls back to fetching
+  and scraping `__NEXT_DATA__` when the cookie is opaque, has no usable token, or
+  is near expiry. Same credentials, one less request per refresh; the fallback
+  keeps it working if familio changes the cookie. The envelope is parsed as JSON,
+  never sniffed: its inner JWT contributes exactly two dots, so a naive parser
+  will "successfully" decode the raw envelope and then send the whole thing as the
+  bearer.
 - `ErrAccessDenied` was documented as covering 401 and 403; 401 has always mapped
   to `ErrNotLoggedIn`. Comment corrected, behaviour unchanged.
 - An `*APIError`'s message names what a mapped status means, so a bare 401 still

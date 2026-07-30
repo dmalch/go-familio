@@ -53,23 +53,59 @@ func TestGetTreeGraphLive(t *testing.T) {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(graph.Nodes).ToNot(BeEmpty(), "the account should have at least one person")
 
-	var edges int
+	byNodeID := make(map[string]TreeGraphNode, len(graph.Nodes))
+	for _, node := range graph.Nodes {
+		byNodeID[node.NodeID] = node
+	}
+
+	var central, hasMore, edges int
 	for _, node := range graph.Nodes {
 		Expect(node.NodeID).ToNot(BeEmpty())
-		for _, edge := range append(append([]TreeGraphEdge{}, node.Params.Parents...), node.Params.Partners...) {
-			Expect(edge.NodeID).ToNot(BeEmpty())
-			// A sex that is neither literal means the layout hint changed shape.
-			Expect([]string{GenderMale, GenderFemale}).To(ContainElement(edge.Sex),
-				"unexpected sex %q on an edge of node %s", edge.Sex, node.NodeID)
+		Expect(node.PersonUUID()).ToNot(BeEmpty())
+		Expect(node.NodeID).To(HavePrefix(node.PersonUUID()),
+			"a node id should be its person uuid plus a placement suffix")
+		Expect([]string{TreeRoleCentralPerson, TreeRoleParent, TreeRoleChild, TreeRoleSpouse}).
+			To(ContainElement(node.Params.Role), "unexpected role %q", node.Params.Role)
+		if node.Params.Role == TreeRoleCentralPerson {
+			central++
+			Expect(node.Params.Layer).To(BeZero(), "the central person sits at layer 0")
+		}
+		if node.Params.HasMore {
+			hasMore++
+		}
+
+		for _, parent := range node.Params.Parents {
+			Expect(parent.NodeID).ToNot(BeEmpty())
+			Expect([]string{GenderMale, GenderFemale}).To(ContainElement(parent.Sex),
+				"unexpected sex %q on a parent edge of %s", parent.Sex, node.NodeID)
+			edges++
+		}
+		// Partners are bare node ids, unlike parents.
+		for _, partner := range node.Params.Partners {
+			Expect(partner).ToNot(BeEmpty())
 			edges++
 		}
 	}
-	t.Logf("decoded %d node(s) with %d edge(s)", len(graph.Nodes), edges)
+	Expect(central).To(Equal(1), "exactly one node is the central person")
+	t.Logf("decoded %d node(s), %d edge(s), %d node(s) with more relatives beyond the window",
+		len(graph.Nodes), edges, hasMore)
 
-	// The node ids are person uuids: the first one must resolve.
-	basic, err := client.GetPersonBasic(ctx, graph.Nodes[0].NodeID)
+	// Every edge must point at a node the response actually contains.
+	for _, link := range graph.Edges.LayoutBasis {
+		Expect(byNodeID).To(HaveKey(link.Source))
+		Expect(byNodeID).To(HaveKey(link.Target))
+	}
+
+	// The embedded person summary must line up with the person endpoint.
+	first := graph.Nodes[0]
+	Expect(first.Person.FirstName).ToNot(BeEmpty())
+	basic, err := client.GetPersonBasic(ctx, first.PersonUUID())
 	Expect(err).ToNot(HaveOccurred())
-	Expect(basic.UUID).To(Equal(graph.Nodes[0].NodeID))
+	Expect(basic.UUID).To(Equal(first.PersonUUID()))
+	Expect(basic.FirstName).To(Equal(first.Person.FirstName))
+	Expect(basic.LastName).To(Equal(first.Person.LastName))
+	Expect(basic.MiddleName).To(Equal(first.Person.Patronymic),
+		"the graph calls the middle name a patronymic")
 }
 
 // TestSessionCookieTokenIsAcceptedLive is the assertion behind the auth fast

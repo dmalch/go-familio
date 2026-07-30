@@ -61,12 +61,20 @@ func (c *Client) bearerToken(ctx context.Context) (string, error) {
 	return token, nil
 }
 
+// sessionEnvelope is the JSON object familio's `t` cookie actually holds. The
+// bearer is the token field; synapseToken belongs to familio's chat and is not a
+// credential for /api/v2.
+type sessionEnvelope struct {
+	Token string `json:"token"`
+}
+
 // sessionCookieToken returns the JWT carried by the `t` session cookie, its
-// expiry, and the account uuid — but only when the cookie really is a JWT with a
-// uuid claim and enough life left to be worth caching. Anything else (an opaque
-// session id, a malformed or near-expired token) reports ok=false so the caller
-// falls back to the __NEXT_DATA__ scrape. That fallback is what keeps this safe
-// if familio ever changes the cookie's contents.
+// expiry, and the account uuid — but only when the cookie yields a well-formed
+// JWT with a uuid claim and enough life left to be worth caching. Anything else
+// (an opaque session id, an envelope without a token, a malformed or
+// near-expired JWT) reports ok=false so the caller falls back to the
+// __NEXT_DATA__ scrape. That fallback is what keeps this working if familio
+// changes the cookie's contents.
 func (c *Client) sessionCookieToken() (token string, exp time.Time, uuid string, ok bool) {
 	if c.httpClient.Jar == nil {
 		return "", time.Time{}, "", false
@@ -75,18 +83,54 @@ func (c *Client) sessionCookieToken() (token string, exp time.Time, uuid string,
 		if cookie.Name != sessionCookieName {
 			continue
 		}
-		value := cookie.Value
-		// A header pasted from DevTools can carry the value percent-encoded.
-		if unescaped, err := url.QueryUnescape(value); err == nil {
-			value = unescaped
+		candidate, found := jwtFromCookieValue(cookie.Value)
+		if !found {
+			return "", time.Time{}, "", false
 		}
-		exp, uuid, err := parseJWTClaims(value)
+		exp, uuid, err := parseJWTClaims(candidate)
 		if err != nil || uuid == "" || !time.Now().Before(exp.Add(-tokenSkew)) {
 			return "", time.Time{}, "", false
 		}
-		return value, exp, uuid, true
+		return candidate, exp, uuid, true
 	}
 	return "", time.Time{}, "", false
+}
+
+// jwtFromCookieValue extracts the bearer from a `t` cookie value. familio stores
+// a JSON envelope (`{"token":"eyJ…","synapseToken":"syt_…"}`), usually
+// percent-encoded on the wire; a bare JWT is accepted too, since that is what
+// callers who only kept the token will pass.
+//
+// The envelope must be parsed as JSON, not sniffed: its inner JWT contributes
+// exactly two dots, so splitting the raw envelope on "." yields three parts and a
+// naive parser will happily decode the middle one and then send the whole
+// envelope as the bearer (familio answers 401 «Invalid JWT Token»).
+func jwtFromCookieValue(value string) (string, bool) {
+	if unescaped, err := url.QueryUnescape(value); err == nil {
+		value = unescaped
+	}
+	value = strings.TrimSpace(value)
+
+	if strings.HasPrefix(value, "{") {
+		var envelope sessionEnvelope
+		if err := json.Unmarshal([]byte(value), &envelope); err != nil {
+			return "", false
+		}
+		return envelope.Token, looksLikeJWT(envelope.Token)
+	}
+	return value, looksLikeJWT(value)
+}
+
+// looksLikeJWT reports whether s is shaped like a JWT: three segments whose
+// header decodes as base64url JSON. It rejects the values that must fall through
+// to the scrape before they are sent as a bearer.
+func looksLikeJWT(s string) bool {
+	parts := strings.Split(s, ".")
+	if len(parts) != 3 {
+		return false
+	}
+	header, err := base64.RawURLEncoding.DecodeString(parts[0])
+	return err == nil && strings.HasPrefix(string(header), "{")
 }
 
 // scrapeToken fetches the familio.org landing page with the session cookie and

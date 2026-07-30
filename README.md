@@ -63,7 +63,7 @@ A runnable version of this example lives in
 |---|---|---|
 | Account | `GetProfile`, `AccountUUID` | — |
 | Persons | `GetPersonBasic`, `GetPersonRegular`, `GetPersonDisplay`, `GetPersonEvents`, `ListSettlementPersons` (public) | `CreatePerson`, `UpdatePersonBasic`, `DeletePerson` |
-| Tree | `GetTreeGraph` (one request), `CrawlTree` (bounded BFS with names/years) | — |
+| Tree | `GetTreeGraph` (the editor canvas in one request), `CrawlTree` (bounded BFS, structured dates) | — |
 | Events | via `GetPersonEvents` + `DeriveRelations` | `CreateEvent`, `DeleteEvent` (marriages are `wedding` events) |
 | Biography | `GetPersonBiography` | `UpdatePersonBiography` |
 | Sources | `GetPersonSources` | `CreateSource`, `UpdateSourceComment`, `DeleteSource` |

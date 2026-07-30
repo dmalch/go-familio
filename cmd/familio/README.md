@@ -41,7 +41,7 @@ familio whoami                       # the authenticated account: uuid, email, d
 familio person get <uuid>            # record + derived relations + birth/death years + events
 familio person set-biography <uuid>  # set a biography from -text or stdin (-append to keep existing)
 familio tree <uuid>                  # crawl connected persons with structured relations
-familio graph                        # the whole tree's node ids + parent/partner edges, in one request
+familio graph                        # the whole tree-editor canvas (layout + person cards) in one request
 familio marriage create <a> <b>      # link two persons with a wedding event
 familio marriage delete <p> <union>  # delete a marriage (union) by a participant + union uuid
 familio settlement get <uuid>        # a settlement (place) record
@@ -93,18 +93,27 @@ familio tree <uuid> [-up | -down | -component] [-surname <s>] [-depth <n>]
 
 ### `graph`
 
-Prints the account's whole tree exactly as familio's editor loads it — one
-request, `{nodes: [{nodeId, nodeParams: {role, parents, partners}}]}`, where
-every `nodeId` is a person uuid and each edge carries the other person's `sex`.
+Prints familio's whole tree-editor canvas in **one request**, centred on your own
+person: per node a layout position (`role`, the Russian kinship label, `layer`,
+parent and partner edges) plus a person summary (names, locality, photo,
+pre-formatted dates).
 
 ```bash
 familio graph
 ```
 
-It is the cheap way to see a tree's shape: `tree <uuid>` spends one request per
-person and returns names, years and relations, while `graph` spends one request
-total and returns neither. There is no children list — a child is the inverse of
-a `parents` edge. Feed a `nodeId` to `person get` to resolve it.
+It is the cheap way to see a tree — `tree <uuid>` spends one request per person —
+but mind three things:
+
+- A `nodeId` is `<person-uuid>.<n>`, not a person uuid: one person can be placed
+  twice. `personData.personId` is the uuid to feed `person get`.
+- `hasMore: true` means that node has relatives **not in the response**. The graph
+  is a window on the tree, not an inventory of it.
+- The dates are display strings (`29.11.1890 ст.`, `После 29.04.1926`), not
+  parseable values. Use `person get` (or `tree`) for structured dates.
+
+There is no children list — a child is the inverse of a `parents` edge, which
+`edges.layoutBasis` also states as parent→child pairs.
 
 ### `history list` / `history filters`
 
