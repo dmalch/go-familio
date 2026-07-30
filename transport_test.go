@@ -70,6 +70,33 @@ func TestAPIErrorWrapsSentinels(t *testing.T) {
 	}
 }
 
+// TestAPIErrorConstructedByHand covers an APIError a caller builds themselves —
+// simulating a 409 in their own tests, say. Every field of the struct is exported,
+// so it must behave like one this package produced: same errors.Is matching, same
+// message. A sentinel kept in a private field would silently break that.
+func TestAPIErrorConstructedByHand(t *testing.T) {
+	cases := []struct {
+		status int
+		want   error
+	}{
+		{http.StatusNotFound, ErrNotFound},
+		{http.StatusUnauthorized, ErrNotLoggedIn},
+		{http.StatusForbidden, ErrAccessDenied},
+		{http.StatusConflict, ErrConflict},
+	}
+	for _, tc := range cases {
+		RegisterTestingT(t)
+		err := error(&APIError{Method: http.MethodGet, Path: "/api/v2/persons/x", StatusCode: tc.status})
+		Expect(err).To(MatchError(tc.want), "HTTP %d should match its sentinel", tc.status)
+		Expect(err.Error()).To(ContainSubstring(strings.TrimPrefix(tc.want.Error(), "familio: ")))
+	}
+
+	// A status with no sentinel wraps nothing, and says so by unwrapping to nil.
+	plain := &APIError{Method: http.MethodPut, Path: "/api/v2/persons/x/basic", StatusCode: http.StatusBadRequest}
+	Expect(plain.Unwrap()).To(BeNil())
+	Expect(plain.Error()).To(Equal("familio: PUT /api/v2/persons/x/basic: HTTP 400"))
+}
+
 // TestAPIErrorMessageExplainsTheStatus keeps the error text self-explanatory: a
 // bare 401 must still say what it means, because that string is what a CLI or a
 // Terraform diagnostic shows the user.

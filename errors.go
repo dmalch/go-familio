@@ -51,9 +51,6 @@ type APIError struct {
 	// Body is the response body, truncated to a few hundred bytes. familio's
 	// error bodies are JSON like {"type":…,"message":"Ошибка…","code":4}.
 	Body string
-
-	// err is the wrapped sentinel, if the status maps to one.
-	err error
 }
 
 // Error renders the failed request, its status, what that status means (for the
@@ -61,9 +58,9 @@ type APIError struct {
 // a Terraform diagnostic shows the user, so it has to stand on its own.
 func (e *APIError) Error() string {
 	msg := fmt.Sprintf("familio: %s %s: HTTP %d", e.Method, e.Path, e.StatusCode)
-	if e.err != nil {
+	if sentinel := e.Unwrap(); sentinel != nil {
 		// The sentinels carry the package prefix; it is already on msg.
-		msg += ": " + strings.TrimPrefix(e.err.Error(), "familio: ")
+		msg += ": " + strings.TrimPrefix(sentinel.Error(), "familio: ")
 	}
 	if e.Body != "" {
 		msg += ": " + e.Body
@@ -72,18 +69,19 @@ func (e *APIError) Error() string {
 }
 
 // Unwrap returns the sentinel for this status (ErrNotFound, ErrNotLoggedIn,
-// ErrAccessDenied, ErrConflict), or nil when the status maps to none.
-func (e *APIError) Unwrap() error { return e.err }
+// ErrAccessDenied, ErrConflict), or nil when the status maps to none. It is
+// derived from StatusCode rather than stored, so an APIError a caller builds
+// themselves — simulating a 409 in a test, say — matches errors.Is exactly like
+// one this package produced.
+func (e *APIError) Unwrap() error { return sentinelFor(e.StatusCode) }
 
-// newAPIError builds the error for a failed response, attaching the sentinel
-// that matches its status.
+// newAPIError builds the error for a failed response.
 func newAPIError(method, path string, status int, body string) *APIError {
 	return &APIError{
 		Method:     method,
 		Path:       path,
 		StatusCode: status,
 		Body:       body,
-		err:        sentinelFor(status),
 	}
 }
 
