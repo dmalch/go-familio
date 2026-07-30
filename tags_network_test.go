@@ -32,7 +32,7 @@ func TestListTagsLive(t *testing.T) {
 	tags, err := client.ListTags(ctx)
 	Expect(err).ToNot(HaveOccurred())
 	for _, tag := range tags {
-		Expect(tag.ID).ToNot(BeEmpty())
+		Expect(tag.ID).To(BeNumerically(">", 0))
 		Expect(tag.Name).ToNot(BeEmpty())
 		Expect(TagColorHex).To(HaveKey(tag.Color),
 			"unknown colour %q — the palette in tags.go is out of date", tag.Color)

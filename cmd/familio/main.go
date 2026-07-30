@@ -23,6 +23,7 @@ import (
 type globalOpts struct {
 	cookies string // -cookies / FAMILIO_COOKIES — raw "name=value; …" header
 	browser string // -browser / FAMILIO_BROWSER — read cookies from a logged-in browser
+	baseURL string // FAMILIO_BASE_URL — override https://familio.org/ (testing only)
 	stdin   io.Reader
 	stdout  io.Writer
 	stderr  io.Writer
@@ -62,6 +63,9 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	if g.browser == "" {
 		g.browser = os.Getenv("FAMILIO_BROWSER")
 	}
+	// Env-only, deliberately not a flag: it exists so the CLI can be pointed at
+	// a fake familio.org in tests, not as a user-facing knob.
+	g.baseURL = os.Getenv("FAMILIO_BASE_URL")
 
 	rest := fs.Args()
 	if len(rest) == 0 {

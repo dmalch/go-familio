@@ -73,3 +73,18 @@ func newLiveClient(t *testing.T) *Client {
 		return nil
 	}
 }
+
+// asMap asserts that a decoded JSON value is an object, so tests can walk a
+// request body without unchecked type assertions.
+func asMap(v any) map[string]any {
+	m, ok := v.(map[string]any)
+	Expect(ok).To(BeTrue(), "expected a JSON object, got %T", v)
+	return m
+}
+
+// asSlice asserts that a decoded JSON value is an array.
+func asSlice(v any) []any {
+	s, ok := v.([]any)
+	Expect(ok).To(BeTrue(), "expected a JSON array, got %T", v)
+	return s
+}

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -65,6 +66,46 @@ func TestAPIErrorWrapsSentinels(t *testing.T) {
 			var apiErr *APIError
 			Expect(errors.As(err, &apiErr)).To(BeTrue(), "expected an *APIError, got %v", err)
 			Expect(apiErr.StatusCode).To(Equal(tc.status))
+		})
+	}
+}
+
+// TestAPIErrorMessageExplainsTheStatus keeps the error text self-explanatory: a
+// bare 401 must still say what it means, because that string is what a CLI or a
+// Terraform diagnostic shows the user.
+func TestAPIErrorMessageExplainsTheStatus(t *testing.T) {
+	cases := []struct {
+		name   string
+		status int
+		body   string
+		want   []string
+	}{
+		{"401 names the session problem", http.StatusUnauthorized, "",
+			[]string{"HTTP 401", "not logged in"}},
+		{"409 names the version conflict", http.StatusConflict, "",
+			[]string{"HTTP 409", "stale X-Base-Version"}},
+		{"the server message is kept too", http.StatusUnauthorized, `{"message":"Требуется авторизация"}`,
+			[]string{"HTTP 401", "not logged in", "Требуется авторизация"}},
+		{"an unmapped status just reports itself", http.StatusBadRequest, `{"message":"Ошибка"}`,
+			[]string{"HTTP 400", "Ошибка"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			RegisterTestingT(t)
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+				_, _ = io.WriteString(w, tc.body)
+			}))
+			defer srv.Close()
+
+			client, _ := NewClient(Options{BaseURL: srv.URL + "/", RateLimit: 1000})
+			_, err := client.ListSettlementPersons(context.Background(), "whatever")
+			for _, want := range tc.want {
+				Expect(err.Error()).To(ContainSubstring(want))
+			}
+			// The sentinel's own "familio: " prefix must not be repeated inline.
+			Expect(err.Error()).To(HavePrefix("familio: "))
+			Expect(strings.Count(err.Error(), "familio: ")).To(Equal(1))
 		})
 	}
 }

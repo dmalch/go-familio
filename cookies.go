@@ -5,6 +5,10 @@ import (
 	"strings"
 )
 
+// sessionCookieName is familio's session cookie. Its value is itself the JWT the
+// authed API wants (see auth.go).
+const sessionCookieName = "t"
+
 // CookiesFromHeader parses a "name=value; name=value" cookie header (the form
 // copied out of a browser's DevTools Network panel, or the $FAMILIO_COOKIES env
 // var) into a slice of *http.Cookie suitable for Options.Cookies. Lifted from
@@ -39,5 +43,5 @@ func CookieFromSessionToken(token string) []*http.Cookie {
 	if token == "" {
 		return nil
 	}
-	return []*http.Cookie{{Name: "t", Value: token}}
+	return []*http.Cookie{{Name: sessionCookieName, Value: token}}
 }

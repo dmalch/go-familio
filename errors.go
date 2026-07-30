@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 var (
@@ -55,9 +56,15 @@ type APIError struct {
 	err error
 }
 
-// Error renders the failed request, its status, and the server's message.
+// Error renders the failed request, its status, what that status means (for the
+// four mapped ones), and the server's message. The whole string is what a CLI or
+// a Terraform diagnostic shows the user, so it has to stand on its own.
 func (e *APIError) Error() string {
 	msg := fmt.Sprintf("familio: %s %s: HTTP %d", e.Method, e.Path, e.StatusCode)
+	if e.err != nil {
+		// The sentinels carry the package prefix; it is already on msg.
+		msg += ": " + strings.TrimPrefix(e.err.Error(), "familio: ")
+	}
 	if e.Body != "" {
 		msg += ": " + e.Body
 	}
