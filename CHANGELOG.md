@@ -1,3 +1,37 @@
+## 1.0.0
+
+**No functional changes from 0.7.1** — this release is the commitment, not new
+code. The surface worth freezing landed across 0.6.0 and 0.7.x; what changes here
+is what you can rely on.
+
+### What 1.0 promises
+
+Semantic versioning applies to the **Go API** — the exported identifiers of package
+`familio` — and to `cmd/familio`'s commands and flags. Neither will change
+incompatibly within v1.
+
+### What it cannot promise
+
+familio.org publishes no API and makes no compatibility promise; every endpoint
+here was reverse-engineered from the web app. So:
+
+- **An upstream break is a patch release**, not a major bump. If familio changes a
+  response shape, the fix that follows is `1.y.Z`.
+- New endpoint coverage is a minor release. The deliberate gaps — source catalog
+  browsing, photo, the `validate/*` helpers, the bulk match writes — are listed in
+  `API.md` and can each arrive in a `1.y.0` without breaking anything.
+- Live decode tests (`make test-acceptance`) are how upstream drift is caught,
+  since CI cannot run them. They run before releases.
+
+See the README's **Stability** section, and `CONTRIBUTING.md` for the release flow.
+
+### Getting here from 0.6.x
+
+One breaking change, in 0.7.0: `CreatePerson` and `GetPersonDisplay` return
+`*CreatedPerson` and `*PersonDisplay` instead of unexported types. Code binding
+the result with `:=` needs no change. Everything else in 0.7.x was additive or a
+fix.
+
 ## 0.7.1
 
 ### FIXED
