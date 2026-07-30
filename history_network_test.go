@@ -20,7 +20,7 @@ func TestListPersonsHistoryLive(t *testing.T) {
 	}
 	RegisterTestingT(t)
 
-	client := newLiveHistoryClient(t)
+	client := newLiveClient(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -44,29 +44,4 @@ func TestListPersonsHistoryLive(t *testing.T) {
 	t.Logf("facets: %d authors, %d operations, %d data types, %d persons (hasMore=%v)",
 		len(filters.Authors), len(filters.Operations), len(filters.DataTypes),
 		len(filters.Persons), filters.PersonsHasMore)
-}
-
-// newLiveHistoryClient builds a client from the ambient credentials, skipping
-// the test when none are configured (the history endpoints need a session).
-func newLiveHistoryClient(t *testing.T) *Client {
-	t.Helper()
-	switch {
-	case os.Getenv("FAMILIO_COOKIES") != "":
-		c, err := NewClient(Options{Cookies: CookiesFromHeader(os.Getenv("FAMILIO_COOKIES"))})
-		Expect(err).ToNot(HaveOccurred())
-		return c
-	case os.Getenv("FAMILIO_SESSION") != "":
-		c, err := NewClient(Options{Cookies: CookieFromSessionToken(os.Getenv("FAMILIO_SESSION"))})
-		Expect(err).ToNot(HaveOccurred())
-		return c
-	case os.Getenv("FAMILIO_BROWSER") != "":
-		cookies, err := CookiesFromBrowser(os.Getenv("FAMILIO_BROWSER"))
-		Expect(err).ToNot(HaveOccurred())
-		c, err := NewClient(Options{Cookies: cookies})
-		Expect(err).ToNot(HaveOccurred())
-		return c
-	default:
-		t.Skip("set FAMILIO_COOKIES, FAMILIO_SESSION, or FAMILIO_BROWSER to run the live history test")
-		return nil
-	}
 }

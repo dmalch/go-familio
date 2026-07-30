@@ -20,10 +20,14 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// Version is this module's version, sent in the default User-Agent. Bump it in
+// the same commit as the release tag (see CONTRIBUTING.md).
+const Version = "0.7.0"
+
 const (
 	defaultBaseURL   = "https://familio.org/"
 	apiV2Path        = "api/v2/"
-	defaultUserAgent = "terraform-provider-familio/0.1 (+https://github.com/dmalch/terraform-provider-familio)"
+	defaultUserAgent = "go-familio/" + Version + " (+https://github.com/dmalch/go-familio)"
 	defaultRateLimit = 2.0
 	defaultTimeout   = 60 * time.Second
 )

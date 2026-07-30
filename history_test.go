@@ -2,43 +2,15 @@ package familio
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
 
 	. "github.com/onsi/gomega"
 )
-
-// historyOwner is the account uuid embedded in the test JWT; the history
-// endpoints address the owner in the path, resolved via AccountUUID.
-const historyOwner = "894dc7d5-65f3-4c60-ad4e-3084f0bc26e0"
-
-// historyTestJWT builds an unsigned JWT whose payload carries a far-future exp
-// and the historyOwner uuid claim, so AccountUUID resolves without a network
-// round-trip beyond the scrape.
-func historyTestJWT() string {
-	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`))
-	payload := base64.RawURLEncoding.EncodeToString(
-		[]byte(`{"exp":9999999999,"uuid":"` + historyOwner + `"}`))
-	return header + "." + payload + ".sig"
-}
-
-// historyTestServer is biographyTestServer with a uuid-bearing token, so the
-// history endpoints can build their owner-addressed paths.
-func historyTestServer(handler http.HandlerFunc) *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" {
-			_, _ = io.WriteString(w, `<script id="__NEXT_DATA__">{"props":{"token":"`+historyTestJWT()+`"}}</script>`)
-			return
-		}
-		handler(w, r)
-	}))
-}
 
 // historyListFixture is a trimmed live response of the list endpoint: one
 // event delete and one biography update, with the real envelope and record
@@ -71,16 +43,16 @@ const historyListFixture = `{
 func TestListPersonsHistory(t *testing.T) {
 	RegisterTestingT(t)
 	var gotQuery url.Values
-	srv := historyTestServer(func(w http.ResponseWriter, r *http.Request) {
+	srv := authedTestServer(func(w http.ResponseWriter, r *http.Request) {
 		Expect(r.Method).To(Equal(http.MethodGet))
-		Expect(r.URL.Path).To(Equal("/api/v2/persons/history/" + historyOwner))
+		Expect(r.URL.Path).To(Equal("/api/v2/persons/history/" + testOwnerUUID))
 		Expect(r.Header.Get("Authorization")).To(HavePrefix("Bearer eyJ"))
 		gotQuery = r.URL.Query()
 		_, _ = io.WriteString(w, historyListFixture)
 	})
 	defer srv.Close()
 
-	page, err := newHistoryClient(srv).ListPersonsHistory(context.Background(), HistoryFilter{})
+	page, err := newTestClient(srv).ListPersonsHistory(context.Background(), HistoryFilter{})
 	Expect(err).ToNot(HaveOccurred())
 
 	// The API rejects requests missing any of these four params with a 400.
@@ -185,9 +157,9 @@ const historyFiltersFixture = `{
 // with an empty JSON body, decoding every facet family.
 func TestGetHistoryFilters(t *testing.T) {
 	RegisterTestingT(t)
-	srv := historyTestServer(func(w http.ResponseWriter, r *http.Request) {
+	srv := authedTestServer(func(w http.ResponseWriter, r *http.Request) {
 		Expect(r.Method).To(Equal(http.MethodPost))
-		Expect(r.URL.Path).To(Equal("/api/v2/persons/history/" + historyOwner + "/get-filters-data"))
+		Expect(r.URL.Path).To(Equal("/api/v2/persons/history/" + testOwnerUUID + "/get-filters-data"))
 		body, err := io.ReadAll(r.Body)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(string(body)).To(Equal("{}"))
@@ -195,7 +167,7 @@ func TestGetHistoryFilters(t *testing.T) {
 	})
 	defer srv.Close()
 
-	filters, err := newHistoryClient(srv).GetHistoryFilters(context.Background())
+	filters, err := newTestClient(srv).GetHistoryFilters(context.Background())
 	Expect(err).ToNot(HaveOccurred())
 
 	Expect(filters.Operations).To(HaveLen(3))
@@ -212,13 +184,4 @@ func TestGetHistoryFilters(t *testing.T) {
 	Expect(*birth.Item.Value.EventType).To(Equal("birth"))
 	Expect(birth.Item.Value.SourceType).To(BeNil())
 	Expect(*birth.Item.DisplayValue.Subtype).To(Equal("Рождение"))
-}
-
-func newHistoryClient(srv *httptest.Server) *Client {
-	c, _ := NewClient(Options{
-		BaseURL:   srv.URL + "/",
-		Cookies:   CookiesFromHeader("t=secret"),
-		RateLimit: 1000,
-	})
-	return c
 }

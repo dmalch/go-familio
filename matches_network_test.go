@@ -21,7 +21,7 @@ func TestListMatchesLive(t *testing.T) {
 	}
 	RegisterTestingT(t)
 
-	client := newLiveHistoryClient(t)
+	client := newLiveClient(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

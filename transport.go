@@ -104,23 +104,15 @@ func (c *Client) do(req *http.Request, out any) error {
 		}
 
 		switch {
-		case resp.StatusCode == http.StatusNotFound:
-			return ErrNotFound
-		case resp.StatusCode == http.StatusUnauthorized:
-			return ErrNotLoggedIn
-		case resp.StatusCode == http.StatusForbidden:
-			return ErrAccessDenied
 		case resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500:
-			lastErr = fmt.Errorf("familio: %s %s: HTTP %d: %s",
-				req.Method, req.URL.Path, resp.StatusCode, snippet(body))
+			lastErr = newAPIError(req.Method, req.URL.Path, resp.StatusCode, snippet(body))
 			if attempt < maxAttempts {
 				time.Sleep(retryBackoff(attempt))
 				continue
 			}
 			return lastErr
 		case resp.StatusCode >= 400:
-			return fmt.Errorf("familio: %s %s: HTTP %d: %s",
-				req.Method, req.URL.Path, resp.StatusCode, snippet(body))
+			return newAPIError(req.Method, req.URL.Path, resp.StatusCode, snippet(body))
 		}
 
 		if out == nil || len(body) == 0 {

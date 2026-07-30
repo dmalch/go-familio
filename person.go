@@ -107,9 +107,10 @@ type BasicRecord struct {
 	UpdatedAt   string `json:"updatedAt"`
 }
 
-// personDisplay is the slice of the regularPerson view (GET /persons/<uuid>)
-// the provider surfaces as the computed display_name.
-type personDisplay struct {
+// PersonDisplay is the slice of the regularPerson view (GET /persons/<uuid>)
+// carrying the server-computed display name — the name familio renders from the
+// basic fields, which a /basic read does not include.
+type PersonDisplay struct {
 	UUID        string `json:"uuid"`
 	DisplayName string `json:"displayName"`
 }
@@ -122,8 +123,10 @@ type personCreateBody struct {
 	Biography *string     `json:"biography"`
 }
 
-// createResponse is the 201 body of POST /persons.
-type createResponse struct {
+// CreatedPerson is the 201 body of POST /persons: the new person's basic record
+// (Basic.UUID is the new person's uuid) and the events the create attached, each
+// with its own server-assigned uuid.
+type CreatedPerson struct {
 	Basic  BasicRecord `json:"basic"`
 	Events []Event     `json:"events"`
 }
@@ -203,7 +206,7 @@ func SelfBaptismEvent(date *DateRange, place, comment string) Event {
 // CreatePerson mints a new tree person (POST /api/v2/persons), owned by the
 // authenticated account. Returns the server's basic record (incl. the new uuid)
 // and the events it created.
-func (c *Client) CreatePerson(ctx context.Context, in CreatePersonInput) (*createResponse, error) {
+func (c *Client) CreatePerson(ctx context.Context, in CreatePersonInput) (*CreatedPerson, error) {
 	// bearerToken also populates userUUID, used as ?owner=.
 	if _, err := c.bearerToken(ctx); err != nil {
 		return nil, err
@@ -218,7 +221,7 @@ func (c *Client) CreatePerson(ctx context.Context, in CreatePersonInput) (*creat
 	if err != nil {
 		return nil, err
 	}
-	var resp createResponse
+	var resp CreatedPerson
 	if err := c.do(req, &resp); err != nil {
 		return nil, err
 	}
@@ -253,12 +256,12 @@ func (c *Client) GetPersonEvents(ctx context.Context, uuid string) ([]Event, err
 }
 
 // GetPersonDisplay reads the computed display name from the regularPerson view.
-func (c *Client) GetPersonDisplay(ctx context.Context, uuid string) (*personDisplay, error) {
+func (c *Client) GetPersonDisplay(ctx context.Context, uuid string) (*PersonDisplay, error) {
 	req, err := c.newAuthedRequest(ctx, http.MethodGet, "persons/"+uuid, nil, nil)
 	if err != nil {
 		return nil, err
 	}
-	var d personDisplay
+	var d PersonDisplay
 	if err := c.do(req, &d); err != nil {
 		return nil, err
 	}
