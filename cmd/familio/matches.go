@@ -197,7 +197,7 @@ func runMatchDecision(ctx context.Context, g *globalOpts, args []string,
 		return errors.New("expected at least one <match-uuid> argument")
 	}
 
-	if !*yes && !confirmAction(g, verb, ids) {
+	if !*yes && !confirmAction(g, verb, "match(es)", ids) {
 		return errors.New(verb + " aborted")
 	}
 
@@ -212,11 +212,12 @@ func runMatchDecision(ctx context.Context, g *globalOpts, args []string,
 }
 
 // confirmAction prompts on stderr before a mutation and reports whether the
-// user answered yes. Anything other than "y"/"yes" declines, and so does a
-// failed read (EOF on a closed or empty stdin), so the safe answer is always
-// the default.
-func confirmAction(g *globalOpts, verb string, ids []string) bool {
-	_, _ = fmt.Fprintf(g.stderr, "%s %d match(es):\n", strings.ToUpper(verb[:1])+verb[1:], len(ids))
+// user answered yes. noun names what the ids identify, already carrying its own
+// plural form ("match(es)", "tag(s)"). Anything other than "y"/"yes" declines,
+// and so does a failed read (EOF on a closed or empty stdin), so the safe
+// answer is always the default.
+func confirmAction(g *globalOpts, verb, noun string, ids []string) bool {
+	_, _ = fmt.Fprintf(g.stderr, "%s %d %s:\n", strings.ToUpper(verb[:1])+verb[1:], len(ids), noun)
 	for _, id := range ids {
 		_, _ = fmt.Fprintf(g.stderr, "  %s\n", id)
 	}

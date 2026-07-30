@@ -105,7 +105,7 @@ func TestConfirmAction(t *testing.T) {
 		g := NewWithT(t)
 		var errb bytes.Buffer
 		gopts := &globalOpts{stdin: strings.NewReader(tc.stdin), stderr: &errb}
-		g.Expect(confirmAction(gopts, "reject", []string{"m-1"})).To(Equal(tc.want), "stdin %q", tc.stdin)
+		g.Expect(confirmAction(gopts, "reject", "match(es)", []string{"m-1"})).To(Equal(tc.want), "stdin %q", tc.stdin)
 	}
 }
 
@@ -115,7 +115,7 @@ func TestConfirmAction_PromptsOnStderr(t *testing.T) {
 	g := NewWithT(t)
 	var errb bytes.Buffer
 	gopts := &globalOpts{stdin: strings.NewReader("n\n"), stderr: &errb}
-	g.Expect(confirmAction(gopts, "reject", []string{"m-1", "m-2"})).To(BeFalse())
+	g.Expect(confirmAction(gopts, "reject", "match(es)", []string{"m-1", "m-2"})).To(BeFalse())
 	g.Expect(errb.String()).To(ContainSubstring("Reject 2 match(es):"))
 	g.Expect(errb.String()).To(ContainSubstring("m-1"))
 	g.Expect(errb.String()).To(ContainSubstring("m-2"))
