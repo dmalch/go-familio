@@ -209,7 +209,9 @@ side. `SearchPersons` does the same, ending a month range on the month's real la
 ```
 
 The dates are the same complex-date object events carry (an unknown one has `first: null`). The
-places are the settlement detail shape of `GET /api/v2/settlements/<uuid>`.
+places are the settlement detail shape of `GET /api/v2/settlements/<uuid>`. A `catalogPerson`
+result opens with `GET /api/v1/catalogs/<catalogKey>/excerpts/<uuid>`: see
+[Catalogs and catalog records](#catalogs-and-catalog-records-v1-public).
 
 Seen in the bundle but **not** confirmed or implemented: `birthSettlementName` (0 hits for a
 plain town name), `birthSettlementGeorequisites`, `owner`, `hasAllTags[N]`, `privacy[N]`,
@@ -220,6 +222,61 @@ implemented.
 **Legacy:** `GET /api/v2/persons?names=…` is an older fuzzy search. It honours only `names` and a
 legacy `type=regularPerson|catalogPerson`, wraps matched text in `<em>`, and silently ignores
 every other filter (`sex`, years, `orderBy`). The `settlement=` list below is the same endpoint.
+
+### Catalogs and catalog records (v1, public)
+
+familio's record catalogs («справочники»), 1,153 of them, are digitised people indexes: the WWI
+casualty lists (`gwarmil`, 6.49 M records), metric books (`mk…`), revision tales and the like.
+They live on **`/api/v1`**, found through the bundle's v1 route table (`catalogs.root`) and the
+`/catalogs/[catalog]/persons/[personId]` page's SSR data. Both reads below are **public**.
+Confirmed live 2026-10-08.
+
+**A catalog record** — `GET /api/v1/catalogs/<catalogKey>/excerpts/<uuid>` (familio calls it an
+*excerpt*; the same path under `/api/v2` is a 404):
+
+```jsonc
+{ "@id": "/catalogs/mkkoturkul/excerpts/<uuid>", "@type": "Excerpt",
+  "uuid", "recordID",                   // recordID: the catalog row the excerpt was taken from
+  "excerptsType": "person", "excerptsText": "Иванов Фома Иванов",   // the name as recorded
+  "catalogKey": "mkkoturkul",
+  "attributes": { "geography": ["ст. Щучинск, …"], "birth_place": "ст. Щучинск, …",
+                  "birth_date": {…} },  // or [] — PHP's empty map — when there are none
+  "record": { "uuid", "position", "record_text", … },   // catalog-specific, see below
+  "birth_date": {type,calendar,first,second,formatted} | null,      // the events' date object
+  "death_date": … ,
+  "persons": [ {"@id": "/persons/<uuid>", lastName, firstName, middleName, sex: "m"|"f", …} ],
+  "settlements": [ {"@id": "/settlements/<uuid>", primaryName: {name}, type: {name: {ru}}, …} ],
+  "parishes": [] }
+```
+
+- **`record` depends on the catalog.** gwarmil has `record_text` and `url`. A metric book has
+  `type_r`, `role`, `event_date`, `parish`, `priest`, `baptism_date`, `archive_link` and
+  `full_record`, among 30-odd others. **Values can carry HTML**: `<br>`, `<b>`, and `<a href>`
+  links to familio settlement pages or to the source.
+- `persons` are the tree persons that cite the record as a source. `settlements` are the places
+  familio bound it to, in v1's Hydra shape: `primaryName` is an object here, not v2's string.
+  `parishes` was always empty in samples, and is not modelled.
+- **Errors:**
+  - an unknown record, or one asked for under another catalog → **404**
+    `{"errors": ["Выписка не найдена"]}` (v1's error shape);
+  - an unknown catalog → 404;
+  - a **malformed uuid → 500** «Internal error». `GetCatalogPerson` refuses a non-uuid id
+    before sending, so the client's 5xx retry never fires on it.
+
+**A catalog** — `GET /api/v1/catalogs/<key or uuid>`: `name`, `key`, `uuid`, `description`,
+`issueYearDescription` ("1854-1876"), `hidden`, `catalogType`, `recordsCount`, and
+**`catalogsFields`**. These describe a record's keys in display order:
+`{key, title, type ("string"|"text"), showInCard, showInTable, hiddenFromUnauthorized, …}`, so
+`record_text` → «ФИО» and `baptism_date` → «Дата крещения». A `hiddenFromUnauthorized` field
+(`ussr1941` has five) reaches only a request with a bearer. This body is sent as raw UTF-8, not
+`\u`-escaped.
+
+A catalog record becomes a person's source as `{type: "catalog_person", uuid, catalogKey}` (see
+Sources below) — the site's «+ Добавить человека» on the record page sends exactly that.
+
+Not implemented: `GET /api/v1/catalogs`, the paged catalog list (Hydra, `hydra:totalItems`
+1153); the catalog's own search (`/api/v1/catalogs/any/search`); and its filters
+(`catalogsFilters`).
 
 ### Persons — authed read (Bearer)
 
@@ -447,9 +504,11 @@ The two confirmed `type`s come from the two "add source" UI flows:
   the **organization → fund (Фонд) → register/опись → case (Дело)** catalog
   (`/api/v2/{organizations,funds,registers,cases}`). `catalogKey` is **null**.
 - **`catalog_person`** — «Добавить запись из справочника»: a record from a people index, found via
-  `GET /api/v2/persons?type=catalogPerson&names=…&bindAllowed=true`. Here `catalogKey` names the
-  source catalog (e.g. `"gwarmil"` = the WWI «Памяти героев Великой войны» project), since a
-  catalog-person uuid is only unique within its catalog.
+  `GET /api/v2/persons?type=catalogPerson&names=…&bindAllowed=true` in the UI, or the v3 person
+  search (`SearchPersons` with `PersonSearchCatalog`). Here `catalogKey` names the source
+  catalog (e.g. `"gwarmil"` = the WWI «Памяти героев Великой войны» project), since a
+  catalog-person uuid is only unique within its catalog. `GetCatalogPerson` reads the record
+  itself — see [Catalogs and catalog records](#catalogs-and-catalog-records-v1-public).
 
 ### Change history sub-resource (Bearer, Familio Plus)
 
@@ -718,7 +777,8 @@ arrive in a minor release without breaking the v1 surface.
 
 | Not implemented | Why | Consequence |
 |---|---|---|
-| Source **catalog browsing** — `/api/v2/{organizations,funds,registers,cases}` and `GET /persons?type=catalogPerson&names=…&bindAllowed=true` | the drill-down UI flow is several endpoints deep and only needed to *discover* a reference | `CreateSource` needs a reference uuid obtained elsewhere (a browser session) |
+| Source **catalog browsing** for archive cases — `/api/v2/{organizations,funds,registers,cases}` | the drill-down UI flow is several endpoints deep and only needed to *discover* a reference | a `case` source needs its uuid from a browser session; a `catalog_person` one comes from `SearchPersons` + `GetCatalogPerson` |
+| The record-catalog **list** and **catalog search** — `GET /api/v1/catalogs`, `/api/v1/catalogs/any/search` | catalog records are found through the person search | `GetCatalog` reads one catalog by key; the list is a `DoRaw` away |
 | **Photo** — `POST`/`DELETE /persons/<uuid>/photo` | binary upload; no consumer needs it yet | `CreatePerson` always sends `photo: null` |
 | `PUT /api/v2/validate/complex-date`, `POST /api/v2/surnames/validate` | the client builds dates from a typed `DateRange`, so a server round-trip buys little | invalid dates surface as a 400 on the real write instead of ahead of it |
 | Matches bulk `{confirm,reject}-by-filters` | the filter body's `status` is a **scalar** here but an **array** on the reads, and confirming that asymmetry means mass-mutating real matches | use the `*-by-ids` endpoints, which cover the same ground safely |

@@ -52,6 +52,8 @@ familio graph                        # the whole tree-editor canvas (layout + pe
 familio marriage create <a> <b>      # link two persons with a wedding event
 familio marriage delete <p> <union>  # delete a marriage (union) by a participant + union uuid
 familio settlement get <uuid>        # a settlement (place) record
+familio catalog get <catalog-key>    # a record catalog: name, years, record count, fields
+familio catalog person <key> <uuid>  # a catalog record, its fields titled (public)
 familio settlement persons <uuid>    # persons tied to a settlement (public)
 familio sources list <person-uuid>   # a person's source citations
 familio history list                 # change-history entries (Familio Plus)
@@ -230,6 +232,29 @@ issuing a request.
 Nothing here is destructive: `matches undecide` returns a match to the
 `undecided` state, undoing either decision.
 
+### `catalog get` / `catalog person`
+
+familio's record catalogs («справочники») — WWI casualty lists, metric books, revision tales —
+are what `person search -type catalog` finds. `catalog person` opens one record and lays it out
+like the site's card: the catalog-specific fields under the catalog's titles («Дата крещения»),
+in its order, as text — a metric book's `full_record` becomes the readable entry, parents and
+godparents included. Both commands are public.
+
+```bash
+familio catalog person gwarmil 774b6dcb-b44a-4304-944b-d7a5d4513c61
+familio catalog person https://familio.org/catalogs/mkkoturkul/persons/f538a502-0cd1-4cf4-bac7-a77f55d90c92
+familio catalog get mkkoturkul         # name, years, record count, field titles
+```
+
+- Name a record by its catalog key and uuid — a search result's `catalogKey` and `uuid` — or
+  paste its familio link.
+- The view: `catalog {key, name, years}`, `text` (the name as recorded), `birthDate` /
+  `deathDate`, `geography`, `birthPlace`, `fields [{key, title, value}]` (card fields with a
+  value), `linkedPersons` (tree persons citing it), `settlements`, and the site `url`.
+- For the record exactly as sent, HTML and all: `familio api /api/v1/catalogs/<key>/excerpts/<uuid>`.
+- To cite a record as a person's source, the library's `CreateSource` takes it as a
+  `catalog_person` with this `catalogKey` and `uuid`.
+
 ### `tags` — reads
 
 **«Метки»** are the account's own coloured labels, attached to persons to group
@@ -347,6 +372,7 @@ export FAMILIO_COOKIES='t=eyJ…; other=…'
 familio whoami
 familio person get 3a2b…uuid
 familio person search -last Иванов -born 1850..1860   # public, works without credentials too
+familio catalog person gwarmil 774b6dcb-b44a-4304-944b-d7a5d4513c61   # a catalogPerson result, opened
 familio tree 3a2b…uuid -up -surname Иванов
 familio sources list 3a2b…uuid
 familio history list -operation update -from 2026-07-01
