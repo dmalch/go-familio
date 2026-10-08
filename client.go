@@ -37,6 +37,7 @@ const Version = "1.3.0"
 
 const (
 	defaultBaseURL   = "https://familio.org/"
+	apiV1Path        = "api/v1/" // the record catalogs
 	apiV2Path        = "api/v2/"
 	apiV3Path        = "api/v3/" // the person search; everything else is v2
 	defaultUserAgent = "go-familio/" + Version + " (+https://github.com/dmalch/go-familio)"
