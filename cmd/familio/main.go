@@ -1,11 +1,14 @@
-// Command familio is a read-only command-line client for the familio.org
-// genealogy API.
+// Command familio is a command-line client for the familio.org genealogy API.
 //
-// It is a thin façade over the github.com/dmalch/go-familio library: the
-// read commands ("familio person get", "familio settlement get",
-// "familio whoami", …) print JSON results to stdout. Authentication reuses
-// the same credential sources as the Terraform provider — FAMILIO_COOKIES,
-// FAMILIO_SESSION, or a logged-in browser via -browser.
+// It is a thin façade over the github.com/dmalch/go-familio library. The read
+// commands ("familio person get", "familio settlement get", "familio whoami",
+// …) print JSON results to stdout, a few targeted writes ("familio marriage
+// create", "familio tags assign", "familio matches confirm", …) change the
+// account, and "familio api" calls any endpoint, like gh api. The matches
+// decisions and "tags delete", "assign" and "unassign" prompt before acting
+// unless -yes is given. Authentication reuses the same credential sources as the
+// Terraform provider — FAMILIO_COOKIES, FAMILIO_SESSION, or a logged-in browser
+// via -browser.
 //
 // Run "familio help" for the full command list.
 package main
