@@ -129,6 +129,27 @@ func TestHistoryFilterQuery(t *testing.T) {
 	Expect(q.Get("personDataType[1][sourceType]")).To(Equal("case"))
 }
 
+// TestHistoryFilterQueryOneSidedRange covers a filter with only one bound set.
+// familio has no open-ended range: either bound alone is rejected with a 409
+// («Отсутствует параметр date[till]»). So the client fills the missing side
+// with the widest bound familio accepts, which keeps "zero = unbounded" true.
+func TestHistoryFilterQueryOneSidedRange(t *testing.T) {
+	RegisterTestingT(t)
+	at := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+
+	from := HistoryFilter{From: at}.query()
+	Expect(from.Get("date[from]")).To(Equal("2026-07-01T00:00:00Z"))
+	Expect(from.Get("date[till]")).To(Equal("9999-12-31T23:59:59Z"))
+
+	till := HistoryFilter{Till: at}.query()
+	Expect(till.Get("date[from]")).To(Equal("0001-01-01T00:00:00Z"))
+	Expect(till.Get("date[till]")).To(Equal("2026-07-01T00:00:00Z"))
+
+	none := HistoryFilter{}.query()
+	Expect(none.Has("date[from]")).To(BeFalse())
+	Expect(none.Has("date[till]")).To(BeFalse())
+}
+
 // historyFiltersFixture is a trimmed live get-filters-data response.
 const historyFiltersFixture = `{
   "authorFilter": [

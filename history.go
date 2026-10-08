@@ -87,13 +87,23 @@ type HistoryFilter struct {
 	AuthorIDs  []string          // editor user uuids; the zero uuid is the system author
 	PersonIDs  []string          // limit to specific persons
 	DataTypes  []HistoryDataType // limit to specific data blocks / event or source types
-	From       time.Time         // happened-at range start (zero = unbounded)
-	Till       time.Time         // happened-at range end (zero = unbounded)
+	From       time.Time         // happened-at range start (zero = unbounded, see historyRangeStart)
+	Till       time.Time         // happened-at range end (zero = unbounded, see historyRangeEnd)
 
 	Page         int  // 1-based page number; 0 means 1
 	ItemsPerPage int  // page size; 0 means historyPageSize
 	Ascending    bool // oldest first instead of the default newest first
 }
+
+// historyRangeStart and historyRangeEnd are the widest happened-at bounds familio
+// accepts. It has no open-ended range: date[from] without date[till], or the
+// reverse, is rejected with a 409 («Отсутствует параметр date[till]»). So a
+// filter with one bound set is sent with these on the other side, which return
+// the same entries as no date filter at all.
+var (
+	historyRangeStart = time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
+	historyRangeEnd   = time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC)
+)
 
 // query encodes the filter as the endpoint's query parameters. page,
 // itemsPerPage, orderBy and orderDirection are all mandatory on the wire
@@ -129,11 +139,15 @@ func (f HistoryFilter) query() url.Values {
 	for _, v := range f.PersonIDs {
 		q.Add("personId[]", v)
 	}
-	if !f.From.IsZero() {
-		q.Set("date[from]", f.From.Format(time.RFC3339))
-	}
-	if !f.Till.IsZero() {
-		q.Set("date[till]", f.Till.Format(time.RFC3339))
+	if from, till := f.From, f.Till; !from.IsZero() || !till.IsZero() {
+		if from.IsZero() {
+			from = historyRangeStart
+		}
+		if till.IsZero() {
+			till = historyRangeEnd
+		}
+		q.Set("date[from]", from.Format(time.RFC3339))
+		q.Set("date[till]", till.Format(time.RFC3339))
 	}
 	for i, dt := range f.DataTypes {
 		prefix := fmt.Sprintf("personDataType[%d]", i)
