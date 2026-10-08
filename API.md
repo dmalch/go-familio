@@ -14,6 +14,9 @@ read and write paths are confirmed and implemented.
   backend (host discoverable via `GET /api/v2/coral/path`). The backend is reachable directly
   server-side with the bearer — the CORS lock is browser-only.
 - No public API docs (all `…/docs*` 404).
+- Responses escape every non-ASCII character as `\uXXXX` (PHP's `json_encode` default), so
+  Cyrillic arrives as `"\u041f\u0435…"`. The fixtures in this repo were unescaped when they
+  were trimmed. `APIError.Body` decodes the escapes, so error messages read as text.
 - Session cookies seen: `t` (session, HttpOnly), DataDome anti-bot (`__ddg*`), and
   `cookieConfirmed` / `records_spoiler` (non-auth).
 
@@ -156,6 +159,32 @@ familio's «Место рождения / смерти». It is a **structured o
   firstName, lastName, middleName, birthLastName, birthFirstName }` — the edit-form source.
 - `GET /api/v2/persons/<uuid>/events` → `[{ uuid, type, date, settlement, comment,
   participants, … }]`.
+
+#### Missing persons
+
+familio has no single answer for a person that does not exist. Each sub-resource answers it
+differently, and two of them use **409**, the optimistic-lock status. These were confirmed live
+on 2026-10-08 against three kinds of uuid: a person deleted from the account's tree, a random
+uuid, and a catalog person (`type: catalogPerson`). The `/persons/<uuid>` namespace treats a
+catalog person as missing too.
+
+| `GET /api/v2/persons/<uuid>…` | missing person | client maps it to |
+|---|---|---|
+| (the regularPerson view) | **409** `{"message":"Персона не найдена","code":2604}` | `ErrNotFound` |
+| `/basic` | 404 «Персона <uuid> не найдена», code 3 | `ErrNotFound` |
+| `/biography` | 404 «Не найдена персона <uuid>», code 3 | `ErrNotFound` |
+| `/sources` | **409** «Не найдена персона <uuid>», code **0** | `ErrNotFound` |
+| `/events` | **200** `[]` — indistinguishable from "no events" | — (check `/basic`) |
+| `/tags` | **403** «Нет доступа», code 1, the same as for another account's person | `ErrAccessDenied` |
+
+So a 409 is `ErrNotFound` when its body reports the resource missing, meaning code 2604 or a
+message containing «не найден». Any other 409 stays `ErrConflict`. A **malformed** uuid gets
+400 «Некорректный запрос» / «Невалидный UUID персоны» on `/persons/<uuid>`, `/basic` and
+`/tags`. On `/events`, `/biography` and `/sources` it gets **409** code 0 instead,
+«Недопустимый идентификатор персоны» / «Невозможно получить значение». That 409 is left as
+`ErrConflict`; the client never builds such a uuid itself.
+
+The error bodies arrive `\u`-escaped (see Backend & conventions). They are shown decoded here.
 - Frontend routes (`_buildManifest`): `/persons/new`, `/persons/new/simple/[id]`,
   `/persons/[personId]`, `/my-tree`, `/tree`, `/persons`.
 

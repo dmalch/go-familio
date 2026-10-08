@@ -33,7 +33,7 @@ import (
 
 // Version is this module's version, sent in the default User-Agent. Bump it in
 // the same commit as the release tag (see CONTRIBUTING.md).
-const Version = "1.0.1"
+const Version = "1.0.2"
 
 const (
 	defaultBaseURL   = "https://familio.org/"

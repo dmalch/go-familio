@@ -89,7 +89,8 @@ func FindSourceByID(sources []Source, uuid string) *Source {
 }
 
 // GetPersonSources lists a person's source citations
-// (GET /api/v2/persons/<uuid>/sources).
+// (GET /api/v2/persons/<uuid>/sources). A missing person is ErrNotFound,
+// although familio answers it with a 409 (see API.md › Missing persons).
 func (c *Client) GetPersonSources(ctx context.Context, personUUID string) ([]Source, error) {
 	req, err := c.newAuthedRequest(ctx, http.MethodGet, "persons/"+personUUID+"/sources", nil, nil)
 	if err != nil {
