@@ -66,9 +66,24 @@ re-derive it from a browser session.
 2. Add a `CHANGELOG.md` entry in the existing style (a `### NEW` section for
    library surface, `### CLI` for commands).
 3. `make check`, then `make test-acceptance` with a live session.
-4. Commit, tag `vX.Y.Z`, push the tag. Go modules serve from the tag; there is no
-   build artifact to publish.
-5. For a release consumed by
+4. Merge the release PR, then tag the merge commit on `main` with an annotated tag
+   (`git tag -a vX.Y.Z -m vX.Y.Z`) and push the tag. Go modules serve from the tag;
+   there is no build artifact to publish.
+5. Create the GitHub release for the tag. The notes are the changelog entry plus a
+   compare link, and the title follows the earlier ones, `vX.Y.Z — <short summary>`:
+
+   ```bash
+   v=X.Y.Z prev=X.Y.W   # this version and the previous one
+   gh release create "v$v" --verify-tag --title "v$v — <short summary>" --notes "$(
+     awk -v h="## $v" '$0==h{f=1;next} /^## /{f=0} f' CHANGELOG.md
+     echo "**Full Changelog**: https://github.com/dmalch/go-familio/compare/v$prev...v$v"
+   )"
+   ```
+
+   Go modules do not need it, but the Releases page is what people browse, and its
+   "Latest" goes stale without it. 0.7.0 through 1.0.2 shipped as bare tags, and the
+   page showed v0.6.0 as current until 1.1.0.
+6. For a release consumed by
    [terraform-provider-familio](https://github.com/dmalch/terraform-provider-familio),
    bump it there (`go get github.com/dmalch/go-familio@vX.Y.Z && make check`) to
    confirm the surface still fits its call sites.
