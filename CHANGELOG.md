@@ -1,3 +1,34 @@
+## 1.3.0
+
+### NEW
+
+- **`ErrInvalidRequest`: a malformed request is no longer a "version conflict".** familio
+  answers a stale `X-Base-Version` with 409. It also answers some requests it rejects as
+  malformed with 409:
+  - a missing required parameter («Отсутствует параметр date[till]»);
+  - a malformed person uuid on `/events`, `/sources` or `/biography`.
+
+  Those all read as `ErrConflict`, which tells the caller to re-read and retry, and that
+  cannot help. They are now `ErrInvalidRequest`, and so is every **400**, which mapped to no
+  sentinel before. A missing resource stays `ErrNotFound`. Every other 409, including a body
+  that is not JSON, stays `ErrConflict`. `API.md` › Backend & conventions lists the cases.
+
+### CHANGED
+
+- **A 400 now unwraps to `ErrInvalidRequest`**, and its message reads
+  `… HTTP 400: invalid request: …`. Code that only checked `StatusCode` sees no difference.
+- **The own-persons search filter without a session** («Фильтр "мои персоны" недоступен без
+  авторизации», a 409) is `ErrNotLoggedIn`. `SearchPersons` already refused that up front, so
+  this matters only for an error built by hand, or for `DoRaw` callers who build one.
+
+### TESTS & DOCS
+
+- **Four tests now really cover escape decoding.** The 1.0.2 tests for readable error bodies,
+  and the CLI's JSON printer test, were meant to feed familio's `\u`-escaped bodies. The
+  escapes had been decoded when the files were written, so the tests passed without
+  exercising the decoding. They now carry real escapes. Checked by breaking the decoding:
+  five tests fail.
+
 ## 1.2.0
 
 ### NEW
