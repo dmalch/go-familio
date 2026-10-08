@@ -38,6 +38,7 @@ const Version = "1.1.1"
 const (
 	defaultBaseURL   = "https://familio.org/"
 	apiV2Path        = "api/v2/"
+	apiV3Path        = "api/v3/" // the person search; everything else is v2
 	defaultUserAgent = "go-familio/" + Version + " (+https://github.com/dmalch/go-familio)"
 	defaultRateLimit = 2.0
 	defaultTimeout   = 60 * time.Second

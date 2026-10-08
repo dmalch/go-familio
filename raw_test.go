@@ -193,3 +193,36 @@ func TestDoRawHeaderOverridesDefaults(t *testing.T) {
 	Expect(got.Get("X-Base-Version")).To(Equal("v-1"))
 	Expect(got.Get("Content-Type")).To(BeEmpty())
 }
+
+// TestDoRawKeepsAnAPIVersion covers familio's /api/v3 surface (the person
+// search lives there): an endpoint that names a version keeps it, in any of the
+// three forms, and one that does not still means /api/v2.
+func TestDoRawKeepsAnAPIVersion(t *testing.T) {
+	var gotURI atomic.Value
+	srv := authedTestServer(func(w http.ResponseWriter, r *http.Request) {
+		gotURI.Store(r.URL.RequestURI())
+		_, _ = io.WriteString(w, `{}`)
+	})
+	defer srv.Close()
+
+	for _, tc := range []struct{ endpoint, want string }{
+		{"/api/v3/persons?page=1", "/api/v3/persons?page=1"},
+		{"api/v3/persons?page=1", "/api/v3/persons?page=1"},
+		{srv.URL + "/api/v3/persons?page=1", "/api/v3/persons?page=1"},
+		{"/api/v2/profile", "/api/v2/profile"},
+		{"profile", "/api/v2/profile"},
+	} {
+		t.Run(tc.endpoint, func(t *testing.T) {
+			RegisterTestingT(t)
+			_, err := newTestClient(srv).DoRaw(context.Background(), http.MethodGet, tc.endpoint, nil, nil)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(gotURI.Load()).To(Equal(tc.want))
+		})
+	}
+
+	t.Run("a version with no endpoint is refused", func(t *testing.T) {
+		RegisterTestingT(t)
+		_, err := newTestClient(srv).DoRaw(context.Background(), http.MethodGet, "/api/v3/", nil, nil)
+		Expect(err).To(MatchError(ContainSubstring("no endpoint")))
+	})
+}
