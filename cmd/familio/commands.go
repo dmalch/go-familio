@@ -39,7 +39,9 @@ func commandTree() map[string]*command {
 			"persons": {summary: "list the persons tied to a settlement (public, no auth)", run: runSettlementPersons},
 		}},
 		"sources": {summary: "person source citations", sub: map[string]*command{
-			"list": {summary: "list a person's source citations by person uuid", run: runSourcesList},
+			"list":   {summary: "list a person's source citations by person uuid", run: runSourcesList},
+			"add":    {summary: "cite a catalog record on a person: <person-uuid> <catalog-key> <record-uuid> or its link ([-comment] [-yes])", run: runSourcesAdd},
+			"remove": {summary: "remove a person's source by <person-uuid> <record-uuid> or its link ([-yes])", run: runSourcesRemove},
 		}},
 		"matches": {summary: "candidate duplicate persons («Совпадения»)", sub: map[string]*command{
 			"list":     {summary: "list match candidates ([-status s] [-person u] [-user u] [-catalog k] [-date d] [-min-score n] [-page n|-all] …)", run: runMatchesList},
