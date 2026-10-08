@@ -15,6 +15,8 @@ func commandTree() map[string]*command {
 	return map[string]*command{
 		"whoami": {summary: "show the authenticated account (uuid, email, display name)", run: runWhoami},
 		"help":   {summary: "show this usage text", run: runHelp},
+		"api": {summary: "call any /api/v2 endpoint and print the response, like gh api " +
+			"([-X m] [-f|-F k=v] [-H h] [-input f] [-i] [-paginate])", run: runAPI},
 
 		"tree":  {summary: "crawl connected persons with structured relations ([-up|-down|-component] [-surname s] [-depth n])", run: runTree},
 		"graph": {summary: "print the whole tree-editor canvas (layout + person summaries) in one request", run: runGraph},
