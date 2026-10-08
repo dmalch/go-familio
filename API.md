@@ -20,6 +20,14 @@ read and write paths are confirmed and implemented.
   Requests may send raw UTF-8.
 - Session cookies seen: `t` (session, HttpOnly), DataDome anti-bot (`__ddg*`), and
   `cookieConfirmed` / `records_spoiler` (non-auth).
+- **409 is not only the optimistic lock.** A stale `X-Base-Version` on a write is a 409, but
+  familio also answers 409 for:
+  - a missing person on some reads (see [Missing persons](#missing-persons));
+  - a malformed uuid on `/events`, `/biography` and `/sources`;
+  - a missing required query parameter, such as a history `date[from]` without `date[till]`.
+
+  The body's `message` says which. The client maps a missing-resource 409 to `ErrNotFound`, and
+  every other 409 to `ErrConflict`.
 
 ## Authentication — two-layer (cookie bootstraps a JWT bearer)
 
@@ -404,10 +412,16 @@ the API behavior for a non-Plus account is unverified (likely 403 too).
 | `cause[]` | `cause[]=initialization` | `user` (Пользователь) / `initialization` (system-saved) |
 | `authorId[]` | `authorId[]=<userUuid>` | who edited; the zero uuid `00000000-…` is the system author |
 | `personId[]` | `personId[]=<personUuid>` | limit to specific persons (the per-person view) |
-| `date[from]`, `date[till]` | `date[from]=2026-07-01T00:00:00+02:00` | RFC3339 happened-at range |
+| `date[from]`, `date[till]` | `date[from]=2026-07-01T00:00:00+02:00` | RFC3339 happened-at range. **Both or neither** — see below |
 | `personDataType[N][personDataBlock]` | `personDataType[0][personDataBlock]=event` | `basic` / `event` / `source` / `biography` |
 | `personDataType[N][eventType]` | `personDataType[0][eventType]=birth` | with block `event`: an event-type key |
 | `personDataType[N][sourceType]` | `personDataType[0][sourceType]=case` | with block `source`: `register` / `case` / `catalog_person` |
+
+**The date range is both-or-neither.** Either bound alone is rejected with **409**,
+«Отсутствует параметр date[till]» or «… date[from]», with code 0. There is no open-ended range, so to
+bound one side, pass a wide value for the other. familio accepts `1970-01-01T00:00:00Z` ..
+`2100-01-01T00:00:00Z`, and even `0001-01-01T00:00:00Z` .. `9999-12-31T23:59:59Z`. Both return the
+same total as no date filter. Confirmed live 2026-10-08.
 
 **Entry (read shape):**
 ```jsonc
