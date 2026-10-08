@@ -30,6 +30,10 @@ func commandTree() map[string]*command {
 			"create": {summary: "link two persons with a wedding event ([-date] [-comment])", run: runMarriageCreate},
 			"delete": {summary: "delete a marriage by <person-uuid> <union-uuid>", run: runMarriageDelete},
 		}},
+		"catalog": {summary: "record catalogs («справочники») and their records", sub: map[string]*command{
+			"get":    {summary: "show a record catalog by <catalog-key>: name, years, record count, fields", run: runCatalogGet},
+			"person": {summary: "show a catalog record by <catalog-key> <uuid> or its familio link, fields titled (public)", run: runCatalogPerson},
+		}},
 		"settlement": {summary: "settlement (place) resource", sub: map[string]*command{
 			"get":     {summary: "fetch a settlement by uuid", run: runSettlementGet},
 			"persons": {summary: "list the persons tied to a settlement (public, no auth)", run: runSettlementPersons},
