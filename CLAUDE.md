@@ -75,11 +75,17 @@ Cookies come from `Options.Cookies`; build them with `CookiesFromHeader`
 - Errors: every response `>= 400` is an `*APIError` (method, path, status, body)
   that **wraps** the sentinel for its status, so `errors.Is` and `errors.As` both
   work. Sentinels: `ErrNotFound` 404, `ErrNotLoggedIn` 401 (or a `CheckRedirect`
-  bounce to a login path), `ErrAccessDenied` 403, `ErrConflict` 409 (stale
-  `X-Base-Version`) — except a 409 whose body reports the resource missing, which
-  familio sends for a missing person and which is `ErrNotFound` (API.md › Missing
-  persons). `APIError.Body` has familio's `\uXXXX` escapes decoded. Other errors
-  are wrapped with `%w`.
+  bounce to a login path), `ErrAccessDenied` 403, `ErrInvalidRequest` 400,
+  `ErrConflict` 409 (stale `X-Base-Version`). familio also uses 409 for things
+  that are not conflicts, so `conflictSentinel` in `errors.go` reads a 409's
+  message:
+  - a missing resource is `ErrNotFound`;
+  - a session-only filter is `ErrNotLoggedIn`;
+  - a missing parameter or a malformed uuid is `ErrInvalidRequest`.
+
+  A new kind of non-conflict 409 needs its message fragment added there, from a
+  real wire body. `APIError.Body` has familio's `\uXXXX` escapes decoded. Other
+  errors are wrapped with `%w`.
 - Tests use plain `go test` with `github.com/onsi/gomega` matchers (no Ginkgo).
   Shared helpers are in `helpers_test.go`: `authedTestServer` (serves the token
   page on `/`), `newTestClient`, `newLiveClient`, `asMap`/`asSlice`. Fixtures are

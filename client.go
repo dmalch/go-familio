@@ -12,8 +12,8 @@
 // parents/spouses/children.
 //
 // Errors: every response >= 400 is an *APIError carrying the status, and wraps
-// ErrNotFound, ErrNotLoggedIn, ErrAccessDenied, or ErrConflict where the status
-// maps to one — so both errors.Is and errors.As work.
+// ErrNotFound, ErrNotLoggedIn, ErrAccessDenied, ErrConflict, or ErrInvalidRequest
+// where the status maps to one — so both errors.Is and errors.As work.
 //
 // This is an unofficial integration: familio.org publishes no write API and
 // these endpoints were reverse-engineered. See the README's Stability section.
@@ -33,7 +33,7 @@ import (
 
 // Version is this module's version, sent in the default User-Agent. Bump it in
 // the same commit as the release tag (see CONTRIBUTING.md).
-const Version = "1.2.0"
+const Version = "1.3.0"
 
 const (
 	defaultBaseURL   = "https://familio.org/"

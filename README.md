@@ -140,10 +140,13 @@ The settlement-persons read is public and needs no credentials.
   ```
 
   The sentinels are `ErrNotFound` (404), `ErrNotLoggedIn` (401 or a login
-  redirect), `ErrAccessDenied` (403), and `ErrConflict` (409 — a stale
-  `X-Base-Version` on `/basic`, `/biography`, or a source comment). familio also
-  answers a **missing person** with a 409 on some reads. The client recognizes
-  those by their body and reports `ErrNotFound`; see API.md › Missing persons.
+  redirect), `ErrAccessDenied` (403), `ErrInvalidRequest` (400), and
+  `ErrConflict` (409 — a stale `X-Base-Version` on `/basic`, `/biography`, or a
+  source comment). familio answers some other things with a 409 too. The client
+  recognizes them by their body:
+  - a **missing person** is `ErrNotFound` (see API.md › Missing persons);
+  - a missing parameter or a malformed uuid is `ErrInvalidRequest`;
+  - a filter that needs a session is `ErrNotLoggedIn`.
   `Body` has familio's `\uXXXX` escapes decoded, so Cyrillic messages read as text.
 - Derived views on top of the raw events: `DeriveRelations(events, uuid)` →
   normalized `parents`/`spouses`/`children` (spouses carry the wedding-event

@@ -27,8 +27,11 @@ read and write paths are confirmed and implemented.
   - a missing required query parameter, such as a history `date[from]` without `date[till]`;
   - a person search for the account's own persons (`types[]=my_persons`) without a session.
 
-  The body's `message` says which. The client maps a missing-resource 409 to `ErrNotFound`, and
-  every other 409 to `ErrConflict`.
+  The body's `message` says which, and the client sorts them by it:
+  - a missing resource is `ErrNotFound`;
+  - the own-persons filter without a session is `ErrNotLoggedIn`;
+  - a missing parameter or a malformed uuid is `ErrInvalidRequest`, the same as every 400;
+  - anything else is `ErrConflict`.
 
 ## Authentication — two-layer (cookie bootstraps a JWT bearer)
 
@@ -255,8 +258,8 @@ So a 409 is `ErrNotFound` when its body reports the resource missing, meaning co
 message containing «не найден». Any other 409 stays `ErrConflict`. A **malformed** uuid gets
 400 «Некорректный запрос» / «Невалидный UUID персоны» on `/persons/<uuid>`, `/basic` and
 `/tags`. On `/events`, `/biography` and `/sources` it gets **409** code 0 instead,
-«Недопустимый идентификатор персоны» / «Невозможно получить значение». That 409 is left as
-`ErrConflict`; the client never builds such a uuid itself.
+«Недопустимый идентификатор персоны» / «Невозможно получить значение». The client maps that 409,
+like the 400s, to `ErrInvalidRequest`.
 
 The error bodies arrive `\u`-escaped (see Backend & conventions). They are shown decoded here.
 - Frontend routes (`_buildManifest`): `/persons/new`, `/persons/new/simple/[id]`,

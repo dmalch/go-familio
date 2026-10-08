@@ -389,7 +389,7 @@ func TestIndentJSON(t *testing.T) {
 	var out bytes.Buffer
 
 	err := indentJSON(&out, []byte(
-		`{"displayName":"Мальчиков Д.","zeta":1.50,"alpha":[],`+
+		`{"displayName":"\u041c\u0430\u043b\u044c\u0447\u0438\u043a\u043e\u0432 \u0414.","zeta":1.50,"alpha":[],`+
 			`"obj":{},"esc":"a\"b\\c\nd<>&\u0007","list":[true,null,{"k":-2e3}]}`))
 
 	g.Expect(err).ToNot(HaveOccurred())

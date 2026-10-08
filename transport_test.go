@@ -49,6 +49,7 @@ func TestAPIErrorWrapsSentinels(t *testing.T) {
 		{"401 is not logged in", http.StatusUnauthorized, ErrNotLoggedIn},
 		{"403 is access denied", http.StatusForbidden, ErrAccessDenied},
 		{"409 is a version conflict", http.StatusConflict, ErrConflict},
+		{"400 is an invalid request", http.StatusBadRequest, ErrInvalidRequest},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -83,6 +84,7 @@ func TestAPIErrorConstructedByHand(t *testing.T) {
 		{http.StatusUnauthorized, ErrNotLoggedIn},
 		{http.StatusForbidden, ErrAccessDenied},
 		{http.StatusConflict, ErrConflict},
+		{http.StatusBadRequest, ErrInvalidRequest},
 	}
 	for _, tc := range cases {
 		RegisterTestingT(t)
@@ -92,9 +94,9 @@ func TestAPIErrorConstructedByHand(t *testing.T) {
 	}
 
 	// A status with no sentinel wraps nothing, and says so by unwrapping to nil.
-	plain := &APIError{Method: http.MethodPut, Path: "/api/v2/persons/x/basic", StatusCode: http.StatusBadRequest}
+	plain := &APIError{Method: http.MethodPut, Path: "/api/v2/persons/x/basic", StatusCode: http.StatusUnprocessableEntity}
 	Expect(plain.Unwrap()).To(BeNil())
-	Expect(plain.Error()).To(Equal("familio: PUT /api/v2/persons/x/basic: HTTP 400"))
+	Expect(plain.Error()).To(Equal("familio: PUT /api/v2/persons/x/basic: HTTP 422"))
 }
 
 // TestAPIErrorMessageExplainsTheStatus keeps the error text self-explanatory: a
@@ -113,8 +115,10 @@ func TestAPIErrorMessageExplainsTheStatus(t *testing.T) {
 			[]string{"HTTP 409", "stale X-Base-Version"}},
 		{"the server message is kept too", http.StatusUnauthorized, `{"message":"Требуется авторизация"}`,
 			[]string{"HTTP 401", "not logged in", "Требуется авторизация"}},
-		{"an unmapped status just reports itself", http.StatusBadRequest, `{"message":"Ошибка"}`,
-			[]string{"HTTP 400", "Ошибка"}},
+		{"400 names an invalid request", http.StatusBadRequest, `{"message":"Ошибка(и) в данных запроса"}`,
+			[]string{"HTTP 400", "invalid request", "Ошибка(и) в данных запроса"}},
+		{"an unmapped status just reports itself", http.StatusUnprocessableEntity, `{"message":"Ошибка"}`,
+			[]string{"HTTP 422", "Ошибка"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -32,9 +33,17 @@ var (
 	// ErrConflict is returned on HTTP 409 — a stale X-Base-Version
 	// optimistic-lock token. The resource changed since it was read; re-read it
 	// for a fresh version and retry the write. familio guards /basic,
-	// /biography and source comments this way. A 409 whose body reports the
-	// resource missing is ErrNotFound instead.
+	// /biography and source comments this way. familio uses 409 for other things
+	// too, and those map elsewhere by the body's message: a missing resource is
+	// ErrNotFound, a filter that needs a session is ErrNotLoggedIn, and a
+	// malformed request is ErrInvalidRequest (see conflictSentinel).
 	ErrConflict = errors.New("familio: version conflict (stale X-Base-Version)")
+
+	// ErrInvalidRequest is returned when familio rejects the request itself as
+	// malformed: HTTP 400, or a 409 whose message says a parameter is missing or
+	// an identifier is invalid. Sending the same request again will not help.
+	// The server's message, in APIError.Body, names the problem.
+	ErrInvalidRequest = errors.New("familio: invalid request")
 )
 
 // APIError describes a failed familio.org HTTP response. Every response with a
@@ -45,7 +54,8 @@ var (
 //	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusBadRequest { … }
 //
 // It wraps the sentinel matching its status where one exists (ErrNotFound,
-// ErrNotLoggedIn, ErrAccessDenied, ErrConflict), so errors.Is keeps working:
+// ErrNotLoggedIn, ErrAccessDenied, ErrConflict, ErrInvalidRequest), so errors.Is
+// keeps working:
 //
 //	if errors.Is(err, familio.ErrNotFound) { … }
 type APIError struct {
@@ -79,10 +89,10 @@ func (e *APIError) Error() string {
 }
 
 // Unwrap returns the sentinel for this status (ErrNotFound, ErrNotLoggedIn,
-// ErrAccessDenied, ErrConflict), or nil when the status maps to none. A 409 is
-// ErrConflict unless its Body reports the resource missing, which makes it
-// ErrNotFound. It is derived from StatusCode and Body rather than stored, so an
-// APIError a caller builds themselves — simulating a 409 in a test, say —
+// ErrAccessDenied, ErrConflict, ErrInvalidRequest), or nil when the status maps
+// to none. A 409 is ErrConflict unless its Body says otherwise (see
+// conflictSentinel). It is derived from StatusCode and Body rather than stored,
+// so an APIError a caller builds themselves — simulating a 409 in a test, say —
 // matches errors.Is exactly like one this package produced.
 func (e *APIError) Unwrap() error { return sentinelFor(e.StatusCode, e.Body) }
 
@@ -100,6 +110,8 @@ func newAPIError(method, path string, status int, body string) *APIError {
 // match with errors.Is.
 func sentinelFor(status int, body string) error {
 	switch status {
+	case http.StatusBadRequest:
+		return ErrInvalidRequest
 	case http.StatusUnauthorized:
 		return ErrNotLoggedIn
 	case http.StatusForbidden:
@@ -107,10 +119,7 @@ func sentinelFor(status int, body string) error {
 	case http.StatusNotFound:
 		return ErrNotFound
 	case http.StatusConflict:
-		if reportsNotFound(body) {
-			return ErrNotFound
-		}
-		return ErrConflict
+		return conflictSentinel(body)
 	}
 	return nil
 }
@@ -119,19 +128,41 @@ func sentinelFor(status int, body string) error {
 // answers a missing person with.
 const codePersonNotFound = 2604
 
-// reportsNotFound reports whether a 409 body is familio saying the resource does
-// not exist rather than that it changed: the person-not-found code, or a message
-// containing «не найден» ("not found") — what /persons/<uuid>/sources sends,
-// under the generic code 0. A body that is not JSON reports nothing.
-func reportsNotFound(body string) bool {
+// invalidRequestMarkers are fragments of the messages familio sends with a 409
+// for a malformed request rather than a conflict, all under the generic code 0
+// and confirmed live 2026-10-08.
+var invalidRequestMarkers = []string{
+	"отсутствует параметр",         // «Отсутствует параметр date[till]»: a required parameter is missing
+	"недопустимый идентификатор",   // «Недопустимый идентификатор персоны»: a malformed uuid on /events
+	"невозможно получить значение", // «Невозможно получить значение»: a malformed uuid on /sources, /biography
+}
+
+// conflictSentinel reads a 409's body, since familio answers more than a stale
+// X-Base-Version with 409:
+//   - a missing resource — the person-not-found code, or a message containing
+//     «не найден» ("not found") — is ErrNotFound;
+//   - a filter refused without a session («… недоступен без авторизации») is
+//     ErrNotLoggedIn;
+//   - a malformed request (invalidRequestMarkers) is ErrInvalidRequest;
+//   - anything else, including a body that is not JSON, is ErrConflict.
+func conflictSentinel(body string) error {
 	var msg struct {
 		Code    int    `json:"code"`
 		Message string `json:"message"`
 	}
 	if json.Unmarshal([]byte(body), &msg) != nil {
-		return false
+		return ErrConflict
 	}
-	return msg.Code == codePersonNotFound || strings.Contains(strings.ToLower(msg.Message), "не найден")
+	text := strings.ToLower(msg.Message)
+	switch {
+	case msg.Code == codePersonNotFound || strings.Contains(text, "не найден"):
+		return ErrNotFound
+	case strings.Contains(text, "без авторизации"):
+		return ErrNotLoggedIn
+	case slices.ContainsFunc(invalidRequestMarkers, func(m string) bool { return strings.Contains(text, m) }):
+		return ErrInvalidRequest
+	}
+	return ErrConflict
 }
 
 // readableJSON re-encodes a JSON document compactly, in its own key order and
