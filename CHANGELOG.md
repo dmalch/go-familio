@@ -1,3 +1,38 @@
+## 1.4.0
+
+### NEW
+
+- **Catalog records: `GetCatalogPerson` and `GetCatalog`.** Since 1.2.0, `SearchPersons`
+  returns catalog records (`type: catalogPerson`): entries from familio's 1,153 record
+  catalogs, such as WWI casualty lists and metric books. Until now they couldn't be opened,
+  because `GET /api/v2/persons/<uuid>` treats them as missing. They live on `/api/v1`.
+  - **`GetCatalogPerson(ctx, catalogKey, uuid)` reads one record:**
+    - the name as recorded, and birth and death dates as `EventDate`;
+    - the catalog-specific `Record` row as sent, HTML included;
+    - `Attributes`, with `Geography` and `BirthPlace` surfaced;
+    - the tree persons that cite the record, and the settlements it is bound to.
+  - **`GetCatalog(ctx, keyOrUUID)` reads the catalog:** name, years, kind, record count, and
+    the field metadata that gives a record's keys their titles, in display order.
+  - **Auth and errors:**
+    - Both are public. With a session the bearer is sent, which reveals the fields a catalog
+      hides from anonymous readers.
+    - An unknown record or catalog is `ErrNotFound`.
+    - A record id that isn't a uuid is `ErrInvalidRequest` before any request. familio
+      answers it with a 500, which the client would otherwise retry.
+
+  With `CreateSource`'s `SourceTypeCatalogPerson`, this completes the path: search, read the
+  record, cite it as a source. `API.md` › "Catalogs and catalog records (v1, public)" has the
+  shapes.
+
+### CLI
+
+- **New `familio catalog person <catalog-key> <uuid>`**, which also accepts the record's
+  familio link. It prints the record the way the site's card shows it: the fields under the
+  catalog's titles, in its order, with HTML values as text. A metric book's full entry
+  becomes readable, parents and godparents included. Dates, places, the tree persons citing
+  it, and its settlements come along too.
+- **New `familio catalog get <catalog-key>`**, for the catalog itself.
+
 ## 1.3.0
 
 ### NEW

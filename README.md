@@ -68,6 +68,7 @@ A runnable version of this example lives in
 | Biography | `GetPersonBiography` | `UpdatePersonBiography` |
 | Sources | `GetPersonSources` | `CreateSource`, `UpdateSourceComment`, `DeleteSource` |
 | Settlements | `GetSettlement` | — |
+| Catalogs («справочники») | `GetCatalogPerson` (a catalog record), `GetCatalog` (both public) | — (cite a record with `CreateSource`) |
 | History («История изменений») | `ListPersonsHistory`, `GetHistoryFilters` | — (read-only audit log) |
 | Matches («Совпадения») | `ListMatches`, `ScrollMatches`, `GetMatchFilters` | `ConfirmMatches`, `RejectMatches`, `UndecideMatches` |
 | Tags («Метки») | `ListTags`, `GetPersonTags`, `GetTagsByPersons` | `CreateTag`, `UpdateTag`, `DeleteTag`, `AssignPersonTags`, `UnassignPersonTags` |
