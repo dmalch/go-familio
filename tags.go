@@ -207,7 +207,8 @@ func (c *Client) DeleteTag(ctx context.Context, id int) error {
 
 // GetPersonTags reads the tags assigned to one person via
 // GET /api/v2/persons/<personUuid>/tags. Only the person's author may manage
-// its tags, so this is ErrAccessDenied on someone else's profile.
+// its tags, so this is ErrAccessDenied on someone else's profile — and on a
+// person that does not exist, which familio answers the same way.
 func (c *Client) GetPersonTags(ctx context.Context, personUUID string) ([]Tag, error) {
 	if personUUID == "" {
 		return nil, errors.New("familio: no person uuid given")

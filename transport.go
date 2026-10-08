@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+	"unicode/utf8"
 )
 
 const maxAttempts = 3
@@ -130,10 +131,18 @@ func retryBackoff(attempt int) time.Duration {
 	return time.Duration(attempt) * time.Second
 }
 
+// snippet renders a response body for an error message: a JSON body with its
+// \uXXXX escapes decoded (readableJSON), cut to a few hundred bytes on a rune
+// boundary.
 func snippet(b []byte) string {
 	const limit = 300
-	if len(b) > limit {
-		return string(b[:limit]) + "…"
+	s := string(readableJSON(b))
+	if len(s) <= limit {
+		return s
 	}
-	return string(b)
+	cut := limit
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut] + "…"
 }

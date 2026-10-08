@@ -243,6 +243,10 @@ func (c *Client) GetPersonBasic(ctx context.Context, uuid string) (*BasicRecord,
 }
 
 // GetPersonEvents reads a person's life events (for birth/death dates).
+//
+// familio answers a person that does not exist with an empty list, not an
+// error, so this cannot tell a missing person from one with no events — check
+// with GetPersonBasic, which is ErrNotFound for a missing person.
 func (c *Client) GetPersonEvents(ctx context.Context, uuid string) ([]Event, error) {
 	req, err := c.newAuthedRequest(ctx, http.MethodGet, "persons/"+uuid+"/events", nil, nil)
 	if err != nil {
@@ -256,6 +260,8 @@ func (c *Client) GetPersonEvents(ctx context.Context, uuid string) ([]Event, err
 }
 
 // GetPersonDisplay reads the computed display name from the regularPerson view.
+// A missing person is ErrNotFound, although familio answers it with a 409 (see
+// API.md › Missing persons).
 func (c *Client) GetPersonDisplay(ctx context.Context, uuid string) (*PersonDisplay, error) {
 	req, err := c.newAuthedRequest(ctx, http.MethodGet, "persons/"+uuid, nil, nil)
 	if err != nil {
@@ -284,7 +290,9 @@ type RegularRecord struct {
 }
 
 // GetPersonRegular reads the regularPerson view, including the owning account
-// (ownerId) used to tell one's own tree from other researchers' profiles.
+// (ownerId) used to tell one's own tree from other researchers' profiles. A
+// missing person is ErrNotFound, although familio answers it with a 409 (see
+// API.md › Missing persons).
 func (c *Client) GetPersonRegular(ctx context.Context, uuid string) (*RegularRecord, error) {
 	req, err := c.newAuthedRequest(ctx, http.MethodGet, "persons/"+uuid, nil, nil)
 	if err != nil {
