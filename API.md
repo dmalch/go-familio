@@ -24,7 +24,8 @@ read and write paths are confirmed and implemented.
   familio also answers 409 for:
   - a missing person on some reads (see [Missing persons](#missing-persons));
   - a malformed uuid on `/events`, `/biography` and `/sources`;
-  - a missing required query parameter, such as a history `date[from]` without `date[till]`.
+  - a missing required query parameter, such as a history `date[from]` without `date[till]`;
+  - a person search for the account's own persons (`types[]=my_persons`) without a session.
 
   The body's `message` says which. The client maps a missing-resource 409 to `ErrNotFound`, and
   every other 409 to `ErrConflict`.
@@ -152,6 +153,70 @@ familio's «Место рождения / смерти». It is a **structured o
 - No server-side catalog facet (`catalog=` + `settlement=` ⇒ `totalItems: 0`); filter
   `catalogKey` client-side.
 - Keep `itemsPerPage` ≤ 300 (backend timeouts); page until a short/empty page.
+
+### Persons — search (v3, public)
+
+familio's people search («Люди», the `/persons` page) is **`GET /api/v3/persons`**, the one
+endpoint this client uses outside `/api/v2`. It searches across the account's own persons,
+other accounts' visible persons and the record catalogs. It is **public**: anonymous calls work.
+A bearer adds the account's own private persons, and is required for `types[]=my_persons`.
+Found through the route table in familio's public JS bundle (`/api/v3` base, `persons.root`),
+and confirmed live 2026-10-08 with the counts below for «Мальчиков».
+
+**Required** — each missing one is a **400** naming it: `page`, `itemsPerPage`, `orderBy`,
+`orderDirection`, `mentions`. The web UI sends `orderBy=score`, `orderDirection=desc`,
+`mentions=false`. `itemsPerPage` up to at least 500 is accepted. A search with **no name
+criterion returns 0**.
+
+| param | example | meaning |
+|---|---|---|
+| `lastName` | `lastName=Мальчиков` | fuzzy (also finds «Мальчеков», «Пальчиков») — 1253 |
+| `lastNameExactMatch` | `true` | exact last name — 515 |
+| `firstAndMiddleName` (+ `…ExactMatch`) | `Иван` | first and middle name — 97 with the surname |
+| `name` | `name=Мальчиков Иван` | free text over the whole name — 186 |
+| `types[N]` | `types[0]=catalog_persons` | `my_persons` / `catalog_persons` / `other_users_persons`; none = all — 205 / — / 1048 |
+| `gender` | `male` | `male` / `female` — 695 / 353 |
+| `birthDate[…]`, `deathDate[…]` | see below | birth / death date filter — 86 for born 1850..1860 |
+| `orderBy` | `min_birth_date` | `score`, `full_name`, `birth_settlement_name`, `person_updated_at`, `min_birth_date`, `min_death_date` |
+
+**Dates** take `[calendar]` (`gregorian` / `julian`) and either `[equal][year|month|day]` for one
+date (year-only works: 18 born in 1892) or `[from][…]` + `[till][…]` for a range. A range bound
+needs **every part**: a missing one is a 400 «Поле [from][day] фильтра birthDate должно быть
+числом». The UI widens a year to 1 January .. 31 December and uses years 1 and 9999 for an open
+side. `SearchPersons` does the same, ending a month range on the month's real last day.
+
+**Errors:** `types[]=my_persons` without a bearer is a **409** «Фильтр "мои персоны" недоступен
+без авторизации». `SearchPersons` returns `ErrNotLoggedIn` before sending it.
+
+**Response** `{ pager:{page,itemsPerPage,totalItems}, data:[…] }`, names without markup:
+
+```jsonc
+// regularPerson — an account's tree person
+{ "uuid", "type":"regularPerson", "displayName", "shortDisplayName", "originalDisplayName",
+  "ownerId", "gender", "privacyType", "isMine", "isMe", "canBuildTree", "isGrantedToMe",
+  "tags":[int], "photo", "biography", "updatedAt", "settlementEvents":[],
+  "birthPlace":{uuid,primaryName,additionalNames,mainGeorequisite,type,status,coordinate} | null,
+  "deathPlace": …, "birthSettlementText", "deathSettlementText",
+  "birthDate":{type,calendar,first:{year,month,day,formatted,type},second,formatted} | null,
+  "deathDate": …, "hasDeathEvent" }
+// catalogPerson — a record-catalog («справочник») entry
+{ "uuid", "type":"catalogPerson", "displayName", "shortDisplayName", "originalDisplayName",
+  "catalogKey", "catalogName", "updatedAt", "updating", "mentions":[],
+  "birthSettlementText", "birthDate", "deathDate", "hasDeathEvent" }
+```
+
+The dates are the same complex-date object events carry (an unknown one has `first: null`). The
+places are the settlement detail shape of `GET /api/v2/settlements/<uuid>`.
+
+Seen in the bundle but **not** confirmed or implemented: `birthSettlementName` (0 hits for a
+plain town name), `birthSettlementGeorequisites`, `owner`, `hasAllTags[N]`, `privacy[N]`,
+`settlement` / `parish` / `fund` / `register` / `case` / `surnameId`, `otherUser`, `bindAllowed`.
+The facets, `/api/v3/persons/get-filters-data`, are **POST-only** (a GET is a 405) and not
+implemented.
+
+**Legacy:** `GET /api/v2/persons?names=…` is an older fuzzy search. It honours only `names` and a
+legacy `type=regularPerson|catalogPerson`, wraps matched text in `<em>`, and silently ignores
+every other filter (`sex`, years, `orderBy`). The `settlement=` list below is the same endpoint.
 
 ### Persons — authed read (Bearer)
 
@@ -655,7 +720,7 @@ arrive in a minor release without breaking the v1 surface.
 | `PUT /api/v2/validate/complex-date`, `POST /api/v2/surnames/validate` | the client builds dates from a typed `DateRange`, so a server round-trip buys little | invalid dates surface as a 400 on the real write instead of ahead of it |
 | Matches bulk `{confirm,reject}-by-filters` | the filter body's `status` is a **scalar** here but an **array** on the reads, and confirming that asymmetry means mass-mutating real matches | use the `*-by-ids` endpoints, which cover the same ground safely |
 | A tag facet / name search on `GET /persons` | familio has none | tags are read per person or in bulk, never as a search dimension |
-| `GET /api/v2/persons?names=…` free-text person search | no consumer yet | the only person list is settlement-scoped |
+| Person search **facets** — `POST /api/v3/persons/get-filters-data`, and the unconfirmed search filters (owner, tags, privacy, places, archive refs) | the search itself covers finding a person by name and dates | narrow by name, type, gender and dates; the rest via `DoRaw` |
 
 Any endpoint, documented here or not, can still be reached through `Client.DoRaw` (the CLI's
 `familio api`). It sends a raw request with the client's bearer, rate limit and retry, and
