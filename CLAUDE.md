@@ -74,7 +74,10 @@ Cookies come from `Options.Cookies`; build them with `CookiesFromHeader`
   that **wraps** the sentinel for its status, so `errors.Is` and `errors.As` both
   work. Sentinels: `ErrNotFound` 404, `ErrNotLoggedIn` 401 (or a `CheckRedirect`
   bounce to a login path), `ErrAccessDenied` 403, `ErrConflict` 409 (stale
-  `X-Base-Version`). Other errors are wrapped with `%w`.
+  `X-Base-Version`) — except a 409 whose body reports the resource missing, which
+  familio sends for a missing person and which is `ErrNotFound` (API.md › Missing
+  persons). `APIError.Body` has familio's `\uXXXX` escapes decoded. Other errors
+  are wrapped with `%w`.
 - Tests use plain `go test` with `github.com/onsi/gomega` matchers (no Ginkgo).
   Shared helpers are in `helpers_test.go`: `authedTestServer` (serves the token
   page on `/`), `newTestClient`, `newLiveClient`, `asMap`/`asSlice`. Fixtures are

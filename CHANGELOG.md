@@ -1,3 +1,33 @@
+## 1.0.2
+
+### FIXED
+
+- **A missing person was reported as a version conflict.**
+  - **Cause:** familio answers a person that does not exist with HTTP **409**, not 404, on
+    `GET /persons/<uuid>` («Персона не найдена», code 2604) and `GET /persons/<uuid>/sources`
+    («Не найдена персона …»).
+  - **What went wrong:** `GetPersonRegular`, `GetPersonDisplay`, `GetPersonSources` and
+    `UpdateSourceComment` returned `ErrConflict`, which means "re-read and retry", for a
+    deleted person, instead of `ErrNotFound`. A Terraform `familio_source` whose person was
+    deleted outside Terraform therefore failed to refresh instead of being dropped.
+  - **Now:** a 409 whose body reports the resource missing is `ErrNotFound`. Any other 409
+    stays `ErrConflict`. The `APIError` keeps the real `StatusCode` (409). `Unwrap` reads
+    `Body` as well as `StatusCode`, so a hand-built `APIError` behaves the same.
+- **Error messages showed Cyrillic as `\uXXXX` escapes.** familio escapes every non-ASCII
+  character, and `APIError.Body` carried that through to every CLI error and Terraform
+  diagnostic: `"message":"\u041f\u0435…"`. `Body` now has the escapes decoded, with the key
+  order kept. As a side effect, a typical message also fits the 300-byte cut. The cut now
+  falls on a rune boundary.
+
+### TESTS & DOCS
+
+- API.md › "Missing persons" records how each person read answers a person that does not
+  exist, confirmed live:
+  - `/events` answers **200 `[]`**, so `GetPersonEvents` cannot tell "missing" from "no events";
+  - `/tags` answers **403**, the same as for another account's person.
+
+  Both are noted on the methods.
+
 ## 1.0.1
 
 Documentation only — no code changes.
