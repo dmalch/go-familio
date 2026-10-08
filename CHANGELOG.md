@@ -1,3 +1,21 @@
+## 1.4.1
+
+CLI only. The library is unchanged.
+
+### CLI
+
+- **New `familio sources add <person-uuid> <catalog-key> <record-uuid>`**, which also accepts
+  the record's familio link, with `[-comment]` and `[-yes]`. It cites a catalog record as a
+  person's source. That's the last step after `person search -type catalog` and
+  `catalog person`, so the whole path now works from the terminal.
+  - **Checks before writing:** it reads the record, the person and their sources, and refuses
+    a record the person already cites.
+  - **Prompt:** `[y/N]` on stderr, naming the record and the person, unless `-yes`.
+  - **Comment:** `-comment` is set right after the create, because familio's create body
+    carries none.
+- **New `familio sources remove <person-uuid> <record-uuid|link> [-yes]`**, the undo. A person
+  who doesn't cite the record is an error.
+
 ## 1.4.0
 
 ### NEW

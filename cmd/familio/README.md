@@ -56,6 +56,8 @@ familio catalog get <catalog-key>    # a record catalog: name, years, record cou
 familio catalog person <key> <uuid>  # a catalog record, its fields titled (public)
 familio settlement persons <uuid>    # persons tied to a settlement (public)
 familio sources list <person-uuid>   # a person's source citations
+familio sources add <p> <key> <uuid> # cite a catalog record on a person ([-comment] [-yes])
+familio sources remove <p> <uuid>    # remove a person's source ([-yes])
 familio history list                 # change-history entries (Familio Plus)
 familio history filters              # change-history facets with counts (Familio Plus)
 familio matches list                 # duplicate-candidate matches («Совпадения»)
@@ -252,8 +254,30 @@ familio catalog get mkkoturkul         # name, years, record count, field titles
   `deathDate`, `geography`, `birthPlace`, `fields [{key, title, value}]` (card fields with a
   value), `linkedPersons` (tree persons citing it), `settlements`, and the site `url`.
 - For the record exactly as sent, HTML and all: `familio api /api/v1/catalogs/<key>/excerpts/<uuid>`.
-- To cite a record as a person's source, the library's `CreateSource` takes it as a
-  `catalog_person` with this `catalogKey` and `uuid`.
+- To cite a record as a person's source: `familio sources add <person-uuid> <catalog-key>
+  <uuid>` (below).
+
+### `sources add` / `sources remove`
+
+Cites a catalog record as a person's source, the last step of finding one:
+
+```bash
+familio person search -last Мальчиков -type catalog               # 1. find: catalogKey + uuid
+familio catalog person gwarmil 774b6dcb-b44a-4304-944b-d7a5d4513c61  # 2. read it
+familio sources add 3a2b…uuid gwarmil 774b6dcb-b44a-4304-944b-d7a5d4513c61 -comment "призыв 1914"   # 3. cite it
+familio sources add 3a2b…uuid https://familio.org/catalogs/gwarmil/persons/774b6dcb-…   # or by its link
+familio sources remove 3a2b…uuid 774b6dcb-b44a-4304-944b-d7a5d4513c61   # undo
+```
+
+- `add` reads the record, the person and their sources first. A record the person already
+  cites is refused before any write. It then prompts `[y/N]` on stderr, naming the record and
+  the person, unless `-yes`. Declining, or an empty or closed stdin, writes nothing.
+- `-comment` is set right after the create, as a second request, because familio's create
+  takes no comment. That's the same path the Terraform provider uses.
+- `remove` names the source by what it cites: the record's uuid or link. A person who doesn't
+  cite it is an error. Otherwise it prompts unless `-yes`.
+- Only catalog records for now. An archive case (дело) source still needs its uuid from the
+  browser, and the library's `CreateSource` takes it.
 
 ### `tags` — reads
 
@@ -386,6 +410,7 @@ familio api 'users/{owner}/matches/get-by-filters?itemsPerPage=5' -input matches
 familio matches reject -yes <match-uuid>      # undo with: familio matches undecide <match-uuid>
 familio tags create -name "Проверить в архиве" -color mint-mist
 familio tags assign -yes 3a2b…uuid 2832       # undo with: familio tags unassign …
+familio sources add -yes 3a2b…uuid gwarmil 774b6dcb-…   # undo with: familio sources remove …
 familio marriage create 3a2b…uuid 9f0e…uuid -date 1850-06-12 -comment "венчание"
 familio marriage delete 3a2b…uuid <union-uuid>
 echo "Жил-был человек." | familio person set-biography 3a2b…uuid
