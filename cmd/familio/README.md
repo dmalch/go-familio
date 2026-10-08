@@ -69,6 +69,7 @@ familio tags update <tag-id>         # replace a tag's fields
 familio tags delete <tag-id>…        # delete tags
 familio tags assign <p> <tag-id>…    # assign tags to a person
 familio tags unassign <p> <tag-id>…  # unassign tags from a person
+familio api <endpoint>               # call any /api/v2 endpoint and print the response, like gh api
 familio help                         # full command list
 ```
 
@@ -248,6 +249,64 @@ familio tags unassign [-yes] <person-uuid> <tag-id> [<tag-id>…]
 Only a person's **author** may manage that person's tags, so these calls fail
 with an access error on someone else's profile.
 
+### `api` — raw calls
+
+`familio api` sends any request to familio.org's `/api/v2` and prints the answer,
+in the spirit of `gh api`. It is the way in to endpoints the other commands do not
+cover. It reuses their credentials, rate limit and retries.
+
+```bash
+familio api profile
+familio api -i 'users/{owner}/tags'
+familio api -X GET 'persons/history/{owner}' -f page=1 -f itemsPerPage=20 -f orderBy=id -f orderDirection=desc
+familio api 'persons/history/{owner}/get-filters-data' -f 'operation[]=update'
+echo '["<match-uuid>"]' | familio api 'users/{owner}/matches/undecide-by-ids' -input -
+familio api -X PUT persons/3a2b…uuid/biography -H 'X-Base-Version: …' -f text='…'
+```
+
+| flag | meaning |
+|---|---|
+| `-X`, `-method` | HTTP method. Defaults to GET, or to POST when fields or `-input` are given. |
+| `-f`, `-raw-field key=value` | A string parameter. Repeatable. |
+| `-F`, `-field key=value` | A typed parameter: `true`, `false`, `null` and integers become JSON, `@file` reads a file, `@-` reads stdin. Repeatable. |
+| `-H`, `-header 'Name: value'` | A request header, which overrides the defaults. Repeatable. |
+| `-input file` | Read the request body from a file (`-` for stdin). |
+| `-i`, `-include` | Print the status line and the response headers before the body. |
+| `-paginate` | Follow the response's pager and print every page. |
+
+- **The endpoint** can be written as `profile`, `/api/v2/profile` (the form
+  familio's own links take) or `https://familio.org/api/v2/profile`, with a query
+  string or without. A URL on any other host is refused before a request is
+  made, so the bearer never leaves familio.org.
+- **`{owner}`** in the endpoint, or in a `-F` value, becomes the account uuid.
+  familio files the per-account collections under it: tags, matches, history.
+- **Fields** go in the query string on a GET, and also whenever `-input` supplies
+  the body. Keys are kept literal, so PHP's `operation[]=update` works.
+  Otherwise the fields form a JSON object: `a[b]=…` nests and `a[]=…` appends to
+  an array. As in gh, giving fields switches the default method to **POST**, so
+  a filtered read needs `-X GET`. For a bare JSON array, the body the `*-by-ids`
+  and tag-assign endpoints take, use `-input -`.
+- **Headers:** `Accept` and, when there is a body, `Content-Type` default to
+  `application/ld+json`, as the other commands send. Without any credentials the
+  call goes out anonymously, which only the public settlement list accepts.
+- **The response** body is printed as it came, re-indented when it is JSON. The
+  API escapes Cyrillic as `\uXXXX`, and the output decodes those escapes. A
+  status outside 2xx prints the body, then `HTTP <code>` on stderr, and exits `1`.
+  familio's statuses are its own: a missing person is **409** with «Персона не
+  найдена» on `persons/<uuid>`, but **404** on `persons/<uuid>/basic`. API.md ›
+  "Missing persons" has the full table.
+- **`-paginate`** works for a GET, or for a POST read such as
+  `matches/get-by-filters-scroll`, whose filter body is sent again for each page.
+  It follows either of familio's pager envelopes:
+  - `{page, itemsPerPage, totalItems}` sets the next `page`, up to the total;
+  - `{lastItem, hasMore}` sets `pageAfterItem`.
+
+  Each page is printed in turn. The history list requires `page`, so pass
+  `-f page=1` there.
+
+It does not prompt, and nothing stops a raw call from being a write. It also has
+no `--jq`: pipe the output to `jq` instead.
+
 ## Examples
 
 ```bash
@@ -266,6 +325,7 @@ familio matches list -status undecided -min-score 90
 familio matches filters
 familio tags list
 familio tags person 3a2b…uuid
+familio api 'users/{owner}/matches/get-by-filters?itemsPerPage=5' -input matches-filter.json
 
 # Writes (real mutations on your account):
 familio matches reject -yes <match-uuid>      # undo with: familio matches undecide <match-uuid>

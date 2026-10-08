@@ -17,6 +17,7 @@ read and write paths are confirmed and implemented.
 - Responses escape every non-ASCII character as `\uXXXX` (PHP's `json_encode` default), so
   Cyrillic arrives as `"\u041f\u0435…"`. The fixtures in this repo were unescaped when they
   were trimmed. `APIError.Body` decodes the escapes, so error messages read as text.
+  Requests may send raw UTF-8.
 - Session cookies seen: `t` (session, HttpOnly), DataDome anti-bot (`__ddg*`), and
   `cookieConfirmed` / `records_spoiler` (non-auth).
 
@@ -640,6 +641,10 @@ arrive in a minor release without breaking the v1 surface.
 | Matches bulk `{confirm,reject}-by-filters` | the filter body's `status` is a **scalar** here but an **array** on the reads, and confirming that asymmetry means mass-mutating real matches | use the `*-by-ids` endpoints, which cover the same ground safely |
 | A tag facet / name search on `GET /persons` | familio has none | tags are read per person or in bulk, never as a search dimension |
 | `GET /api/v2/persons?names=…` free-text person search | no consumer yet | the only person list is settlement-scoped |
+
+Any endpoint, documented here or not, can still be reached through `Client.DoRaw` (the CLI's
+`familio api`). It sends a raw request with the client's bearer, rate limit and retry, and
+returns the response undecoded.
 
 `ListSettlementPersons` also pages the whole settlement into memory (~20 k rows
 for a large one) with no caller-side limit.

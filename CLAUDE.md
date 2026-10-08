@@ -27,8 +27,10 @@ request/response shapes, and the auth model.
   `tags list`/`tags person`/`tags by-persons`/`tags colors`, plus the
   `marriage create/delete`, `person set-biography`,
   `matches confirm/reject/undecide` and `tags create/update/delete/assign/unassign`
-  writes). The `matches` mutations and `tags delete`/`assign`/`unassign` prompt
-  `[y/N]` on stderr unless `-yes` is given; nothing else in the CLI prompts.
+  writes, and `api` — a raw `gh api`-style call to any endpoint through
+  `Client.DoRaw`). The `matches` mutations and `tags delete`/`assign`/`unassign` prompt
+  `[y/N]` on stderr unless `-yes` is given; nothing else in the CLI prompts, `api`
+  included.
   CLI tests point the binary at an `httptest` server via `FAMILIO_BASE_URL`
   (`serveAPI` in `servertest_test.go`); it is env-only, not a flag.
 - `examples/getperson/` — a minimal runnable usage example.
