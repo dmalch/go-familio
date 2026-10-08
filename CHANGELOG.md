@@ -1,3 +1,42 @@
+## 1.2.0
+
+### NEW
+
+- **Person search: `Client.SearchPersons`.** It runs familio's people search («Люди»), which
+  covers the account's own persons, other accounts' visible persons and the record catalogs.
+  Until now the only person list was per settlement, so finding someone meant copying a uuid
+  from the browser.
+  - **Filters (`PersonSearch`):**
+    - last name, and first and middle name, fuzzy or exact;
+    - free text over the whole name;
+    - record types (`PersonSearchMine`, `PersonSearchCatalog`, `PersonSearchOtherUsers`);
+    - gender;
+    - birth and death dates as a `DateRange`, either one date or a range;
+    - sort (`SearchOrder*`), plus paging.
+  - **Results:** each `PersonSearchResult` is a regular person, with its owner, privacy,
+    tags and places, or a catalog record. Dates use the existing `EventDate`.
+  - **Endpoint:** the search is `GET /api/v3/persons`, the client's first v3 endpoint. The
+    older `GET /api/v2/persons?names=` honours only the name and silently ignores every
+    other filter. `API.md` › "Persons — search (v3, public)" has the parameters and the
+    response shape.
+  - **Auth:** it is public. A session adds the account's private persons. Asking for
+    `PersonSearchMine` without a session is `ErrNotLoggedIn` before any request, rather than
+    familio's 409.
+- **`DoRaw` keeps an API version that an endpoint names.** `"/api/v3/persons?…"` reaches v3,
+  where before it became `/api/v2/api/v3/persons`. A bare path still means v2.
+
+### CLI
+
+- **New `familio person search`:**
+  - name flags: `-last` / `-first`, each with an `-…-exact` variant, and `-text`;
+  - `-type mine|catalog|others`;
+  - `-gender`;
+  - `-born` / `-died`, taking `YYYY[-MM[-DD]]` or a range `A..B`, `A..` or `..B`;
+  - `-order` with `-asc`, `-page` and `-limit`.
+
+  It works without credentials. A search with no name is refused up front.
+- `familio api` reaches `/api/v3` endpoints too: `familio api -X GET /api/v3/persons -f …`.
+
 ## 1.1.1
 
 ### FIXED

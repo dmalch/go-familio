@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 )
 
@@ -23,18 +24,19 @@ type RawResponse struct {
 	Body []byte
 }
 
-// DoRaw sends an arbitrary request to familio.org's /api/v2 surface — the escape
-// hatch for an endpoint this package does not model. It goes through the same
-// machinery as every typed call: the rate limiter, the retry on 429 and 5xx, the
-// User-Agent, and the JWT bearer.
+// DoRaw sends an arbitrary request to familio.org's API — the escape hatch for an
+// endpoint this package does not model. It goes through the same machinery as
+// every typed call: the rate limiter, the retry on 429 and 5xx, the User-Agent,
+// and the JWT bearer.
 //
 // The bearer is attached when the client holds a `t` session cookie. Without one
-// the request goes out anonymously, which only the public settlement-persons read
-// accepts — and no token scrape is attempted.
+// the request goes out anonymously, which only the public reads (the settlement
+// list, the person search) accept — and no token scrape is attempted.
 //
-// endpoint names the resource relative to the API root ("profile",
+// endpoint names the resource relative to the /api/v2 root ("profile",
 // "persons/<uuid>/events?…"), rooted ("/api/v2/profile", as familio prints its
-// own links), or as a full URL under BaseURL's api/v2/. A URL anywhere else is
+// own links), or as a full URL under BaseURL's api/. Naming another version
+// keeps it: "/api/v3/persons?…" is the v3 person search. A URL anywhere else is
 // refused before any request is made, so the bearer never leaves familio.org.
 //
 // Accept defaults to application/ld+json, and so does Content-Type when body is
@@ -64,12 +66,8 @@ func (c *Client) DoRaw(ctx context.Context, method, endpoint string, header http
 	if body != nil {
 		req.Header.Set("Content-Type", "application/ld+json")
 	}
-	if c.hasSessionCookie() {
-		token, err := c.bearerToken(ctx)
-		if err != nil {
-			return nil, err
-		}
-		req.Header.Set("Authorization", "Bearer "+token)
+	if err := c.addOptionalBearer(ctx, req); err != nil {
+		return nil, err
 	}
 	for name, values := range header {
 		req.Header.Del(name)
@@ -81,21 +79,33 @@ func (c *Client) DoRaw(ctx context.Context, method, endpoint string, header http
 	return c.send(req)
 }
 
-// rawURL resolves a DoRaw endpoint against the API root, refusing anything that
-// would leave it.
-func (c *Client) rawURL(endpoint string) (*url.URL, error) {
-	root := c.baseURL.ResolveReference(&url.URL{Path: apiV2Path})
+// apiVersionRe matches the version an endpoint names, as in "v3/persons" after
+// its "api/" prefix.
+var apiVersionRe = regexp.MustCompile(`^v[0-9]+/`)
 
-	var rest string
+// rawURL resolves a DoRaw endpoint against the API root, refusing anything that
+// would leave it. An endpoint that names a version ("/api/v3/persons") keeps
+// it; one that does not is under api/v2/.
+func (c *Client) rawURL(endpoint string) (*url.URL, error) {
+	root := c.baseURL.ResolveReference(&url.URL{Path: "api/"})
+
+	var rest string // relative to root, starting with the version
 	if strings.HasPrefix(endpoint, "http://") || strings.HasPrefix(endpoint, "https://") {
 		var ok bool
-		if rest, ok = strings.CutPrefix(endpoint, root.String()); !ok {
+		rest, ok = strings.CutPrefix(endpoint, root.String())
+		if !ok || !apiVersionRe.MatchString(rest) {
 			return nil, fmt.Errorf("familio: %s is not a familio.org API URL (%s…)", endpoint, root)
 		}
 	} else {
-		rest = strings.TrimPrefix(strings.TrimPrefix(endpoint, "/"), apiV2Path)
+		rest = strings.TrimPrefix(endpoint, "/")
+		if versioned, ok := strings.CutPrefix(rest, "api/"); ok && apiVersionRe.MatchString(versioned) {
+			rest = versioned
+		} else if !apiVersionRe.MatchString(rest) {
+			rest = strings.TrimPrefix(apiV2Path, "api/") + rest
+		}
 	}
-	if path, _, _ := strings.Cut(rest, "?"); strings.Trim(path, "/") == "" {
+	version := apiVersionRe.FindString(rest)
+	if path, _, _ := strings.Cut(strings.TrimPrefix(rest, version), "?"); strings.Trim(path, "/") == "" {
 		return nil, fmt.Errorf("familio: no endpoint in %q", endpoint)
 	}
 
@@ -107,6 +117,22 @@ func (c *Client) rawURL(endpoint string) (*url.URL, error) {
 		return nil, fmt.Errorf("familio: %s is not a familio.org API URL (%s…)", endpoint, root)
 	}
 	return u, nil
+}
+
+// addOptionalBearer attaches the bearer when the client holds a `t` session
+// cookie and leaves the request anonymous otherwise, for the endpoints that
+// answer both ways: with no cookie no token scrape is attempted. The check is
+// for `t` itself because the jar also collects familio's DataDome cookies.
+func (c *Client) addOptionalBearer(ctx context.Context, req *http.Request) error {
+	if !c.hasSessionCookie() {
+		return nil
+	}
+	token, err := c.bearerToken(ctx)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	return nil
 }
 
 // hasSessionCookie reports whether the client holds a `t` session cookie — the

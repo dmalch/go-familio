@@ -21,7 +21,7 @@ request/response shapes, and the auth model.
   domain is event-centric: persons, marriages, and life facts all share
   `Event` and the `DateRange` date model, so the client is one cohesive
   package rather than per-resource subpackages.
-- `cmd/familio/` — a CLI façade over the library (`whoami`, `person get`,
+- `cmd/familio/` — a CLI façade over the library (`whoami`, `person get`, `person search`,
   `tree`, `graph`, `settlement get`, `settlement persons`, `sources list`,
   `history list`/`history filters`, `matches list`/`matches filters`,
   `tags list`/`tags person`/`tags by-persons`/`tags colors`, plus the

@@ -45,6 +45,7 @@ command and its arguments — `familio person get <uuid> -browser chrome` works.
 ```bash
 familio whoami                       # the authenticated account: uuid, email, display name
 familio person get <uuid>            # record + derived relations + birth/death years + events
+familio person search -last <name>   # search persons by name, type, gender and dates (public)
 familio person set-biography <uuid>  # set a biography from -text or stdin (-append to keep existing)
 familio tree <uuid>                  # crawl connected persons with structured relations
 familio graph                        # the whole tree-editor canvas (layout + person cards) in one request
@@ -80,6 +81,32 @@ convenience view: `relations` (`parents`/`spouses`/`children`, each
 `{uuid, name}`), top-level `birthYear`/`deathYear` and `birthDate`/`deathDate`,
 and — on each spouse — the `marriageUuid` (the underlying wedding-event/union
 uuid needed to import a `familio_marriage` or target it for deletion).
+
+### `person search`
+
+Searches familio's persons — the account's own, other accounts' visible ones, and the record
+catalogs («справочники») — like the site's «Люди» page. The search is public, so it works with
+no credentials. With them it also finds the account's own private persons, and `-type mine`
+becomes available.
+
+```bash
+familio person search -last Мальчиков                       # fuzzy: also «Мальчеков», «Пальчиков»
+familio person search -last Мальчиков -last-exact -first Иван
+familio person search -text "Мальчиков Иван"                # free text over the whole name
+familio person search -last Мальчиков -type catalog         # mine | catalog | others (repeatable)
+familio person search -last Мальчиков -born 1850..1860 -gender male
+familio person search -last Мальчиков -died ..1900 -order born -asc -limit 50 -page 2
+```
+
+- At least one of `-last`, `-first` or `-text` is required. familio finds nothing without a
+  name.
+- `-born` / `-died` take `YYYY[-MM[-DD]]` for one date, or a range: `A..B`, `A..` or `..B`.
+  A year or month in a range covers all of it.
+- `-order` is `score` (relevance, the default), `name`, `place`, `updated`, `born` or `died`,
+  descending unless `-asc`.
+- The output is one page, `{pager, data}`, with `-page`/`-limit` (default 20) to move through
+  it. Each result has a `type`: `regularPerson` (with `ownerId`, `gender`, places) or
+  `catalogPerson` (with `catalogKey`, `catalogName`).
 
 ### `tree`
 
@@ -276,7 +303,8 @@ familio api -X PUT persons/3a2b…uuid/biography -H 'X-Base-Version: …' -f tex
 
 - **The endpoint** can be written as `profile`, `/api/v2/profile` (the form
   familio's own links take) or `https://familio.org/api/v2/profile`, with a query
-  string or without. A URL on any other host is refused before a request is
+  string or without. Naming another version keeps it: `/api/v3/persons` is the
+  person search. A URL on any other host is refused before a request is
   made, so the bearer never leaves familio.org.
 - **`{owner}`** in the endpoint, or in a `-F` value, becomes the account uuid.
   familio files the per-account collections under it: tags, matches, history.
@@ -318,6 +346,7 @@ familio settlement persons 1f8c…uuid
 export FAMILIO_COOKIES='t=eyJ…; other=…'
 familio whoami
 familio person get 3a2b…uuid
+familio person search -last Иванов -born 1850..1860   # public, works without credentials too
 familio tree 3a2b…uuid -up -surname Иванов
 familio sources list 3a2b…uuid
 familio history list -operation update -from 2026-07-01

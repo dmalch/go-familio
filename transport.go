@@ -18,7 +18,13 @@ const maxAttempts = 3
 // newRequest builds a request against BaseURL + api/v2/ + path with standard
 // headers. body, when non-nil, is JSON-encoded.
 func (c *Client) newRequest(ctx context.Context, method, path string, query url.Values, body any) (*http.Request, error) {
-	rel := &url.URL{Path: apiV2Path + path}
+	return c.newRequestAt(ctx, method, apiV2Path+path, query, body)
+}
+
+// newRequestAt is newRequest for a path that names its API version, such as
+// apiV3Path + "persons".
+func (c *Client) newRequestAt(ctx context.Context, method, apiPath string, query url.Values, body any) (*http.Request, error) {
+	rel := &url.URL{Path: apiPath}
 	u := c.baseURL.ResolveReference(rel)
 	if query != nil {
 		u.RawQuery = query.Encode()

@@ -33,11 +33,12 @@ import (
 
 // Version is this module's version, sent in the default User-Agent. Bump it in
 // the same commit as the release tag (see CONTRIBUTING.md).
-const Version = "1.1.1"
+const Version = "1.2.0"
 
 const (
 	defaultBaseURL   = "https://familio.org/"
 	apiV2Path        = "api/v2/"
+	apiV3Path        = "api/v3/" // the person search; everything else is v2
 	defaultUserAgent = "go-familio/" + Version + " (+https://github.com/dmalch/go-familio)"
 	defaultRateLimit = 2.0
 	defaultTimeout   = 60 * time.Second
