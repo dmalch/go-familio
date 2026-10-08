@@ -1,3 +1,37 @@
+## 1.1.0
+
+### NEW
+
+- **`Client.DoRaw`** sends an arbitrary request to familio.org's `/api/v2` and
+  returns the answer undecoded, as a `RawResponse` (status, headers, the whole
+  body). It is the escape hatch for endpoints this package does not model. It
+  goes through the same rate limiter, retry, User-Agent and JWT bearer as every
+  typed call.
+  - The endpoint may be API-relative (`profile`), rooted (`/api/v2/profile`) or a
+    full URL under `BaseURL`. A URL on any other host is refused before a request
+    is made, so the bearer never leaves familio.org.
+  - A status `>= 400` is returned, not turned into an error, so a caller can show
+    the server's message in full rather than the truncated `APIError.Body`.
+  - The bearer is attached only when the client holds a `t` session cookie.
+    Without one the call goes out anonymously, which the public settlement list
+    accepts, and no token scrape is attempted.
+
+### CLI
+
+- **New `api` command**, in the spirit of `gh api`: `familio api <endpoint>` calls
+  any `/api/v2` endpoint with the CLI's credentials and prints the response.
+  - It takes gh's flags: `-X`, `-f`/`-F` (typed values, `@file`, `@-`), `-H`,
+    `-input`, `-i` and `-paginate`.
+  - `{owner}` in the endpoint, or in a `-F` value, becomes the account uuid.
+  - Fields go in the query on a GET and form a JSON object otherwise.
+  - `-paginate` follows both of familio's pager envelopes, page numbers and the
+    `lastItem` cursor, on GETs and on POST reads.
+  - JSON responses are re-indented with the API's `\uXXXX` escapes decoded, so
+    Cyrillic is readable.
+  - A status outside 2xx prints the body and exits 1.
+
+  `cmd/familio/README.md` › "`api` — raw calls" has the details.
+
 ## 1.0.2
 
 ### FIXED

@@ -71,6 +71,7 @@ A runnable version of this example lives in
 | History («История изменений») | `ListPersonsHistory`, `GetHistoryFilters` | — (read-only audit log) |
 | Matches («Совпадения») | `ListMatches`, `ScrollMatches`, `GetMatchFilters` | `ConfirmMatches`, `RejectMatches`, `UndecideMatches` |
 | Tags («Метки») | `ListTags`, `GetPersonTags`, `GetTagsByPersons` | `CreateTag`, `UpdateTag`, `DeleteTag`, `AssignPersonTags`, `UnassignPersonTags` |
+| Anything else | `DoRaw`: any `/api/v2` request with the client's auth, rate limit and retry, the response returned undecoded | same |
 
 Deliberately not covered: photo upload, the source **catalog browsing**
 endpoints (so `CreateSource` needs a reference uuid you obtained elsewhere), the
@@ -89,6 +90,7 @@ go install github.com/dmalch/go-familio/cmd/familio@latest
 familio settlement persons <uuid>      # public, no auth
 FAMILIO_COOKIES='t=eyJ…' familio whoami
 familio tree <uuid> -up -surname Иванов
+familio api 'users/{owner}/tags'        # any endpoint, like gh api
 ```
 
 See [`cmd/familio/README.md`](cmd/familio/README.md) for the full command list,

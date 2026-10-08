@@ -68,17 +68,38 @@ func (c *Client) newAuthedRequest(ctx context.Context, method, path string, quer
 // do executes req (honoring the rate limiter, with a small retry on 429/5xx)
 // and decodes a JSON response into out (out may be nil to discard the body).
 func (c *Client) do(req *http.Request, out any) error {
-	if err := c.limiter.Wait(req.Context()); err != nil {
+	resp, err := c.send(req)
+	if err != nil {
 		return err
 	}
+	if resp.StatusCode >= 400 {
+		return newAPIError(req.Method, req.URL.Path, resp.StatusCode, snippet(resp.Body))
+	}
 
-	var lastErr error
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
+	if out == nil || len(resp.Body) == 0 {
+		return nil
+	}
+	if err := json.Unmarshal(resp.Body, out); err != nil {
+		return fmt.Errorf("familio: decoding response: %w (body: %s)", err, snippet(resp.Body))
+	}
+	return nil
+}
+
+// send executes req, honoring the rate limiter and retrying a 429, a 5xx or a
+// transport failure a couple of times, and returns the final response with its
+// body read — whatever its status. An error is a transport failure, an
+// unreadable body, or a login bounce (ErrNotLoggedIn).
+func (c *Client) send(req *http.Request) (*RawResponse, error) {
+	if err := c.limiter.Wait(req.Context()); err != nil {
+		return nil, err
+	}
+
+	for attempt := 1; ; attempt++ {
 		// Reset the body for retries of requests that carry one.
 		if attempt > 1 && req.GetBody != nil {
 			body, err := req.GetBody()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			req.Body = body
 		}
@@ -88,43 +109,28 @@ func (c *Client) do(req *http.Request, out any) error {
 			// A CheckRedirect sentinel (ErrNotLoggedIn) arrives wrapped in a
 			// *url.Error — unwrap and surface it directly.
 			if errors.Is(err, ErrNotLoggedIn) {
-				return ErrNotLoggedIn
+				return nil, ErrNotLoggedIn
 			}
-			lastErr = err
 			if attempt < maxAttempts {
 				time.Sleep(retryBackoff(attempt))
 				continue
 			}
-			return err
+			return nil, err
 		}
 
 		body, readErr := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 		if readErr != nil {
-			return fmt.Errorf("familio: reading response body: %w", readErr)
+			return nil, fmt.Errorf("familio: reading response body: %w", readErr)
 		}
 
-		switch {
-		case resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500:
-			lastErr = newAPIError(req.Method, req.URL.Path, resp.StatusCode, snippet(body))
-			if attempt < maxAttempts {
-				time.Sleep(retryBackoff(attempt))
-				continue
-			}
-			return lastErr
-		case resp.StatusCode >= 400:
-			return newAPIError(req.Method, req.URL.Path, resp.StatusCode, snippet(body))
+		retryable := resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500
+		if retryable && attempt < maxAttempts {
+			time.Sleep(retryBackoff(attempt))
+			continue
 		}
-
-		if out == nil || len(body) == 0 {
-			return nil
-		}
-		if err := json.Unmarshal(body, out); err != nil {
-			return fmt.Errorf("familio: decoding response: %w (body: %s)", err, snippet(body))
-		}
-		return nil
+		return &RawResponse{StatusCode: resp.StatusCode, Header: resp.Header, Body: body}, nil
 	}
-	return lastErr
 }
 
 func retryBackoff(attempt int) time.Duration {
