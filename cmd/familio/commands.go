@@ -23,6 +23,7 @@ func commandTree() map[string]*command {
 
 		"person": {summary: "person resource", sub: map[string]*command{
 			"get":           {summary: "fetch a person's record, relations, years, and events by uuid", run: runPersonGet},
+			"search":        {summary: "search persons by name (-last|-first|-text [-type] [-gender] [-born] [-died] [-order] [-page] [-limit])", run: runPersonSearch},
 			"set-biography": {summary: "set (or -append) a person's biography from -text or stdin", run: runPersonSetBiography},
 		}},
 		"marriage": {summary: "marriage (wedding event) resource", sub: map[string]*command{
