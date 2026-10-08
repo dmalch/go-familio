@@ -46,3 +46,37 @@ func TestListSettlementPersonsLive(t *testing.T) {
 		len(page.Data), page.Pager.TotalItems, page.Data[0].UUID,
 		page.Data[0].DisplayName, page.Data[0].CatalogKey, page.Data[0].BirthDate.Formatted)
 }
+
+// TestSearchPersonsLive runs a real, anonymous person search per record type
+// and checks each decodes and answers only that type: the search is public, so
+// it needs no credentials. Searching per type keeps the test independent of how
+// familio ranks the kinds against each other.
+func TestSearchPersonsLive(t *testing.T) {
+	if os.Getenv("FAMILIO_NETWORK_TEST") != "1" {
+		t.Skip("set FAMILIO_NETWORK_TEST=1 to run the live familio.org decode test")
+	}
+	RegisterTestingT(t)
+
+	client, err := NewClient(Options{RateLimit: 1000})
+	Expect(err).ToNot(HaveOccurred())
+
+	for searchType, want := range map[string]string{
+		PersonSearchCatalog:    "catalogPerson",
+		PersonSearchOtherUsers: "regularPerson",
+	} {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		page, err := client.SearchPersons(ctx, PersonSearch{
+			LastName: "Иванов", Types: []string{searchType}, ItemsPerPage: 20,
+		})
+		cancel()
+		Expect(err).ToNot(HaveOccurred(), "live search for %s failed", searchType)
+		Expect(page.Pager.TotalItems).ToNot(BeZero(), searchType)
+		Expect(page.Persons).ToNot(BeEmpty(), searchType)
+		for _, p := range page.Persons {
+			Expect(p.UUID).ToNot(BeEmpty())
+			Expect(p.Type).To(Equal(want), "a %s search answered a %s", searchType, p.Type)
+		}
+		t.Logf("%s: decoded %d/%d, e.g. %q", searchType, len(page.Persons), page.Pager.TotalItems,
+			page.Persons[0].DisplayName)
+	}
+}
