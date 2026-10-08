@@ -17,13 +17,13 @@ import (
 // malformed uuid.
 const (
 	// GET /persons/<uuid> — a missing person is a 409, not a 404.
-	wirePersonNotFound409 = `{"type":"simple_error","message":"Персона не найдена","code":2604}`
+	wirePersonNotFound409 = `{"type":"simple_error","message":"\u041f\u0435\u0440\u0441\u043e\u043d\u0430 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430","code":2604}`
 
 	// GET /persons/<uuid>/sources — a 409 with the generic code 0.
-	wireSourcesPersonNotFound409 = `{"type":"simple_error","message":"Не найдена персона 887aa765-fda7-4644-99cc-6b6d8f103167","code":0}`
+	wireSourcesPersonNotFound409 = `{"type":"simple_error","message":"\u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430 \u043f\u0435\u0440\u0441\u043e\u043d\u0430 887aa765-fda7-4644-99cc-6b6d8f103167","code":0}`
 
 	// GET /persons/not-a-uuid/sources — also a 409, but not a missing person.
-	wireMalformedUUID409 = `{"type":"simple_error","message":"Невозможно получить значение","code":0}`
+	wireMalformedUUID409 = `{"type":"simple_error","message":"\u041d\u0435\u0432\u043e\u0437\u043c\u043e\u0436\u043d\u043e \u043f\u043e\u043b\u0443\u0447\u0438\u0442\u044c \u0437\u043d\u0430\u0447\u0435\u043d\u0438\u0435","code":0}`
 )
 
 // TestMissingPersonIsNotFound covers the reads familio answers with a 409 for a
@@ -113,7 +113,7 @@ func TestAPIErrorBodyIsReadable(t *testing.T) {
 	RegisterTestingT(t)
 	srv := authedTestServer(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		_, _ = io.WriteString(w, `{"type":"simple_error","message":"Персона 887aa765 не найдена","code":3}`)
+		_, _ = io.WriteString(w, `{"type":"simple_error","message":"\u041f\u0435\u0440\u0441\u043e\u043d\u0430 887aa765 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430","code":3}`)
 	})
 	defer srv.Close()
 
@@ -142,7 +142,7 @@ func TestSnippetTruncatesOnARuneBoundary(t *testing.T) {
 // order, number literals, nesting, the escapes JSON cannot do without — kept.
 func TestReadableJSON(t *testing.T) {
 	for _, tc := range []struct{ in, want string }{
-		{`{"b":"Ж","a":[1.50,-2e3,true,null,{}],"c":{"d":[]}}`, `{"b":"Ж","a":[1.50,-2e3,true,null,{}],"c":{"d":[]}}`},
+		{`{"b":"\u0416","a":[1.50,-2e3,true,null,{}],"c":{"d":[]}}`, `{"b":"Ж","a":[1.50,-2e3,true,null,{}],"c":{"d":[]}}`},
 		{` [ "a\"b\\c\n\u0007" , "<>&" ] `, `["a\"b\\c\n\u0007","<>&"]`},
 		{`"П"`, `"П"`},
 		{`42`, `42`},
