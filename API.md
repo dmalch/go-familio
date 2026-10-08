@@ -421,7 +421,8 @@ the API behavior for a non-Plus account is unverified (likely 403 too).
 «Отсутствует параметр date[till]» or «… date[from]», with code 0. There is no open-ended range, so to
 bound one side, pass a wide value for the other. familio accepts `1970-01-01T00:00:00Z` ..
 `2100-01-01T00:00:00Z`, and even `0001-01-01T00:00:00Z` .. `9999-12-31T23:59:59Z`. Both return the
-same total as no date filter. Confirmed live 2026-10-08.
+same total as no date filter. Confirmed live 2026-10-08. `HistoryFilter` does this itself: a zero
+`From` or `Till` goes out as `0001-01-01T00:00:00Z` or `9999-12-31T23:59:59Z`.
 
 **Entry (read shape):**
 ```jsonc

@@ -1,3 +1,22 @@
+## 1.1.1
+
+### FIXED
+
+- **A history filter with only one date bound failed.** `HistoryFilter` documents a zero `From`
+  or `Till` as unbounded, but the client sent only the bound that was set. familio has no
+  open-ended range, and it rejects `date[from]` without `date[till]`, or the reverse, with
+  **409** «Отсутствует параметр date[till]». So `ListPersonsHistory` with only `From`
+  returned `ErrConflict`, and so did the CLI README's own example
+  `familio history list -from 2026-07-01`. The missing side is now sent as the widest bound
+  familio accepts: `0001-01-01T00:00:00Z` or `9999-12-31T23:59:59Z`. Confirmed live, those
+  return the same entries as no date filter.
+
+### TESTS & DOCS
+
+- API.md records the both-or-neither date range. Backend & conventions now lists what else
+  familio means by 409: a missing person on some reads, a malformed uuid, or a missing
+  required parameter, besides the optimistic lock.
+
 ## 1.1.0
 
 ### NEW
